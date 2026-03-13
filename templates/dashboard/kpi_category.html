@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2>{{ category.icon }} {{ category.name }}</h2>
+                    <p class="text-muted">{{ category.description }}</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <select class="form-select" style="width: auto;" onchange="window.location.href=this.value">
+                        {% for y in range(now.year-2, now.year+1) %}
+                        <option value="{{ url_for('kpi_category', category_id=category.id, year=y, month=month) }}"
+                                {% if y == year %}selected{% endif %}>
+                            {{ y }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <select class="form-select" style="width: auto;" onchange="window.location.href=this.value">
+                        {% for m in range(1, 13) %}
+                        <option value="{{ url_for('kpi_category', category_id=category.id, year=year, month=m) }}"
+                                {% if m == month %}selected{% endif %}>
+                            {{ datetime(2000, m, 1).strftime('%B') }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        {% for kpi in kpis %}
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">{{ kpi.name }}</h5>
+                    <span class="badge bg-info">{{ kpi.reporting_frequency|title }}</span>
+                </div>
+                <div class="card-body">
+                    {% if kpi.id in entries %}
+                        {% set entry = entries[kpi.id] %}
+                        <div class="text-center mb-3">
+                            <span class="display-4">{{ entry.calculated_value }} {{ kpi.unit }}</span>
+                            <div class="mt-2">
+                                <span class="badge bg-{{ entry.kpi.get_status(entry.calculated_value) }} fs-6">
+                                    Target: {{ kpi.target_value }} {{ kpi.unit }}
+                                </span>
+                            </div>
+                            <small class="text-muted d-block mt-2">
+                                ({{ entry.numerator_value }} / {{ entry.denominator_value }})
+                            </small>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <small class="text-muted">Entered: {{ entry.entry_date.strftime('%Y-%m-%d') }}</small>
+                            <small class="text-muted">By: {{ entry.entered_by_user.full_name }}</small>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-3">
+                            <i class="bi bi-database-slash fs-1 text-muted"></i>
+                            <p class="text-muted mt-2">No data for {{ year }}-{{ '%02d' % month }}</p>
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="card-footer bg-white">
+                    <a href="{{ url_for('kpi_entry', kpi_id=kpi.id, year=year, month=month) }}" 
+                       class="btn btn-sm btn-primary w-100">
+                        <i class="bi bi-plus-circle me-2"></i>
+                        {% if kpi.id in entries %}Update Entry{% else %}Enter Data{% endif %}
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

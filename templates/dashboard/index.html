@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2>Dashboard</h2>
+            <p class="text-muted">Welcome back, {{ current_user.full_name }}</p>
+        </div>
+    </div>
+    
+    <div class="row">
+        {% for category in categories %}
+        <div class="col-md-4 col-lg-3 mb-4">
+            <a href="{{ url_for('kpi_category', category_id=category.id) }}" class="text-decoration-none">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <div class="display-1 mb-3">{{ category.icon }}</div>
+                        <h5 class="card-title">{{ category.name }}</h5>
+                        <p class="card-text text-muted small">{{ category.description|default('') }}</p>
+                    </div>
+                </div>
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Recent KPI Entries</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>KPI</th>
+                                <th>Value</th>
+                                <th>Entered By</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for entry in recent_entries %}
+                            <tr>
+                                <td>{{ entry.entry_date.strftime('%Y-%m-%d') }}</td>
+                                <td>{{ entry.kpi.name }}</td>
+                                <td>
+                                    <span class="badge bg-info">{{ entry.calculated_value }} {{ entry.kpi.unit }}</span>
+                                </td>
+                                <td>{{ entry.entered_by_user.full_name }}</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="4" class="text-center text-muted">No recent entries</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Quick Stats</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <small class="text-muted">Pending Referrals</small>
+                        <h3>{{ pending_referrals }}</h3>
+                    </div>
+                    <div class="mb-3">
+                        <small class="text-muted">Active KPI Categories</small>
+                        <h3>{{ categories|length }}</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

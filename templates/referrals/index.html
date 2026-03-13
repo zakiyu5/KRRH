@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2>Referral Tracking</h2>
+                <a href="{{ url_for('referral_new') }}" class="btn btn-primary">
+                    <i class="bi bi-plus-circle me-2"></i>New Referral
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="btn-group">
+                <a href="{{ url_for('referral_list', status='all') }}" 
+                   class="btn btn-outline-secondary {{ 'active' if status == 'all' else '' }}">All</a>
+                <a href="{{ url_for('referral_list', status='pending') }}" 
+                   class="btn btn-outline-warning {{ 'active' if status == 'pending' else '' }}">Pending</a>
+                <a href="{{ url_for('referral_list', status='confirmed') }}" 
+                   class="btn btn-outline-success {{ 'active' if status == 'confirmed' else '' }}">Confirmed</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Patient</th>
+                                <th>From Ward</th>
+                                <th>To Hospital</th>
+                                <th>Referral Date</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for referral in referrals %}
+                            <tr>
+                                <td>
+                                    <strong>{{ referral.patient_name }}</strong><br>
+                                    <small class="text-muted">ID: {{ referral.patient_id }}</small>
+                                </td>
+                                <td>{{ referral.from_ward }}</td>
+                                <td>{{ referral.to_hospital.name }}</td>
+                                <td>{{ referral.referral_date.strftime('%Y-%m-%d') }}</td>
+                                <td>
+                                    {% if referral.status == 'pending' %}
+                                    <span class="badge bg-warning">Pending</span>
+                                    {% elif referral.status == 'confirmed' %}
+                                    <span class="badge bg-success">Confirmed</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">{{ referral.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if referral.status == 'pending' %}
+                                    <button class="btn btn-sm btn-success" 
+                                            onclick="confirmReferral({{ referral.id }})">
+                                        <i class="bi bi-check-circle"></i> Confirm
+                                    </button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="text-center text-muted">No referrals found</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function confirmReferral(id) {
+    const arrivalDate = prompt('Enter arrival date (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+    if (arrivalDate) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/referrals/${id}/confirm`;
+        
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'arrival_date';
+        input.value = arrivalDate;
+        
+        form.appendChild(input);
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+</script>
+{% endblock %}
