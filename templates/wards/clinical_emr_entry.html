@@ -1,0 +1,221 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h4><i class="bi bi-graph-up"></i> {{ ward.icon }} {{ ward.name }} - Data Entry</h4>
+                        <a href="{{ url_for('ward_dashboard', ward_key=ward_key) }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> Back
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info mb-4">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <strong>How it works:</strong> Enter the raw numbers for doctor and nurse activities. The system will automatically calculate productivity scores, EMR utilization rates, and identify top performers.
+                    </div>
+                    
+                    <form method="POST">
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Year</label>
+                                <select class="form-select" name="year">
+                                    {% for y in year_range %}
+                                    <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Month</label>
+                                <select class="form-select" name="month">
+                                    {% for m in range(1, 13) %}
+                                    <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ months[m-1] }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <!-- Doctor Performance Section -->
+                        <div class="card mb-4">
+                            <div class="card-header bg-primary bg-opacity-10">
+                                <h5 class="mb-0"><i class="bi bi-person-badge"></i> 👨‍⚕️ Doctor Performance Metrics</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-bold">Total OPD Patients Seen</label>
+                                        <input type="number" class="form-control" name="opd_patients_seen" value="{{ existing_data.get('opd_patients_seen', 0) }}" step="any">
+                                        <small class="text-muted">Number of OPD patients attended by doctors</small>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-bold">Total IPD Patients Seen</label>
+                                        <input type="number" class="form-control" name="ipd_patients_seen" value="{{ existing_data.get('ipd_patients_seen', 0) }}" step="any">
+                                        <small class="text-muted">Number of IPD patients attended by doctors</small>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-bold">Total Major Surgeries</label>
+                                        <input type="number" class="form-control" name="major_surgeries" value="{{ existing_data.get('major_surgeries', 0) }}" step="any">
+                                        <small class="text-muted">Major surgical procedures performed</small>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-bold">Total Minor Surgeries</label>
+                                        <input type="number" class="form-control" name="minor_surgeries" value="{{ existing_data.get('minor_surgeries', 0) }}" step="any">
+                                        <small class="text-muted">Minor surgical procedures performed</small>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-bold">Total Prescriptions</label>
+                                        <input type="number" class="form-control" name="prescriptions_done" value="{{ existing_data.get('prescriptions_done', 0) }}" step="any">
+                                        <small class="text-muted">Number of prescriptions written</small>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-bold">Drugs Entered in EMR</label>
+                                        <input type="number" class="form-control" name="drugs_emr" value="{{ existing_data.get('drugs_emr', 0) }}" step="any">
+                                        <small class="text-muted">Number of drug entries in EMR system</small>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-bold">Patients Reviewed on Follow-up</label>
+                                        <input type="number" class="form-control" name="followup_reviews" value="{{ existing_data.get('followup_reviews', 0) }}" step="any">
+                                        <small class="text-muted">Follow-up patients reviewed</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Nurse Performance Section -->
+                        <div class="card mb-4">
+                            <div class="card-header bg-success bg-opacity-10">
+                                <h5 class="mb-0"><i class="bi bi-person-standing"></i> 👩‍⚕️ Nurse Performance Metrics</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-bold">Patients Received (IPD)</label>
+                                        <input type="number" class="form-control" name="patients_received_ipd" value="{{ existing_data.get('patients_received_ipd', 0) }}" step="any">
+                                        <small class="text-muted">IPD patients received by nurses</small>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-bold">Patients Served (IPD/OPD)</label>
+                                        <input type="number" class="form-control" name="patients_served_nurses" value="{{ existing_data.get('patients_served_nurses', 0) }}" step="any">
+                                        <small class="text-muted">Total patients served by nurses</small>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-bold">Nurse Rounds Conducted</label>
+                                        <input type="number" class="form-control" name="nurse_rounds" value="{{ existing_data.get('nurse_rounds', 0) }}" step="any">
+                                        <small class="text-muted">Number of nursing rounds conducted</small>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-bold">Times Involved in Admissions</label>
+                                        <input type="number" class="form-control" name="admissions_involvement" value="{{ existing_data.get('admissions_involvement', 0) }}" step="any">
+                                        <small class="text-muted">Number of times nurses involved in admissions</small>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-bold">Times Accounted for Consumables</label>
+                                        <input type="number" class="form-control" name="consumables_accounted" value="{{ existing_data.get('consumables_accounted', 0) }}" step="any">
+                                        <small class="text-muted">Consumables accounting entries</small>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-bold">Days Worked in EMR</label>
+                                        <input type="number" class="form-control" name="emr_days_worked" value="{{ existing_data.get('emr_days_worked', 0) }}" step="any">
+                                        <small class="text-muted">Number of days staff worked with EMR</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- EMR & Resource Section -->
+                        <div class="card mb-4">
+                            <div class="card-header bg-warning bg-opacity-10">
+                                <h5 class="mb-0"><i class="bi bi-laptop"></i> 🖥️ EMR & Resource Metrics</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-bold">Times Computers Used (EMR)</label>
+                                        <input type="number" class="form-control" name="emr_computer_usage" value="{{ existing_data.get('emr_computer_usage', 0) }}" step="any">
+                                        <small class="text-muted">Total EMR computer usage sessions</small>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-bold">Drug Consumption Variation (%)</label>
+                                        <input type="number" class="form-control" name="drug_consumption_var" value="{{ existing_data.get('drug_consumption_var', 0) }}" step="any">
+                                        <small class="text-muted">Percentage variation in drug consumption</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Top Performers Section -->
+                        <div class="card mb-4">
+                            <div class="card-header bg-info bg-opacity-10">
+                                <h5 class="mb-0"><i class="bi bi-trophy"></i> 🏆 Top Performers Recognition</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-bold">Highest OPD Presenter (Doctor)</label>
+                                        <input type="number" class="form-control" name="top_doctor_opd" value="{{ existing_data.get('top_doctor_opd', 0) }}" step="any">
+                                        <small class="text-muted">Number of OPD patients seen by top doctor</small>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-bold">Top Doctor Name</label>
+                                        <input type="text" class="form-control" name="top_doctor_name" value="{{ existing_data.get('top_doctor_name', '') }}">
+                                        <small class="text-muted">Name of the top performing doctor</small>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-bold">Highest Nurse Rounds</label>
+                                        <input type="number" class="form-control" name="top_nurse_rounds" value="{{ existing_data.get('top_nurse_rounds', 0) }}" step="any">
+                                        <small class="text-muted">Number of rounds by top nurse</small>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-bold">Top Nurse Name</label>
+                                        <input type="text" class="form-control" name="top_nurse_name" value="{{ existing_data.get('top_nurse_name', '') }}">
+                                        <small class="text-muted">Name of the top performing nurse</small>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-bold">Highest Surgical Load</label>
+                                        <input type="number" class="form-control" name="top_surgical_load" value="{{ existing_data.get('top_surgical_load', 0) }}" step="any">
+                                        <small class="text-muted">Number of surgeries by top surgeon</small>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-bold">Top Surgeon Name</label>
+                                        <input type="text" class="form-control" name="top_surgeon_name" value="{{ existing_data.get('top_surgeon_name', '') }}">
+                                        <small class="text-muted">Name of the top performing surgeon</small>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-bold">Highest Drug Administration</label>
+                                        <input type="number" class="form-control" name="top_drug_admin" value="{{ existing_data.get('top_drug_admin', 0) }}" step="any">
+                                        <small class="text-muted">Number of drug administrations by top clinician</small>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-bold">Top Clinician Name</label>
+                                        <input type="text" class="form-control" name="top_clinician_name" value="{{ existing_data.get('top_clinician_name', '') }}">
+                                        <small class="text-muted">Name of the top performing clinician</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-pencil-square"></i> Notes / Remarks
+                            </label>
+                            <textarea class="form-control" name="notes" rows="3" placeholder="Add any additional notes about this data entry...">{{ existing_data.get('notes', '') }}</textarea>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between align-items-center">
+                            <a href="{{ url_for('ward_dashboard', ward_key=ward_key) }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-x-circle"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary btn-lg px-4">
+                                <i class="bi bi-calculator me-2"></i> Calculate & Save
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

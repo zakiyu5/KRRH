@@ -1,0 +1,293 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap">
+                        <div>
+                            <h2>{{ ward.icon }} {{ ward.name }}</h2>
+                            <p class="text-muted">{{ ward.description }}</p>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <select class="form-select" style="width: 120px;" onchange="window.location.href=this.value">
+                                {% for y in year_range %}
+                                <option value="{{ url_for('ward_dashboard', ward_key=ward_key, year=y, month=month) }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+                                {% endfor %}
+                            </select>
+                            <select class="form-select" style="width: 120px;" onchange="window.location.href=this.value">
+                                {% for m in range(1, 13) %}
+                                <option value="{{ url_for('ward_dashboard', ward_key=ward_key, year=year, month=m) }}" {% if m == month %}selected{% endif %}>{{ months[m-1] }}</option>
+                                {% endfor %}
+                            </select>
+                            <a href="{{ url_for('ward_entry', ward_key=ward_key, year=year, month=month) }}" class="btn btn-primary">
+                                <i class="bi bi-pencil"></i> Enter Data
+                            </a>
+                            <a href="{{ url_for('ward_export', ward_key=ward_key) }}" class="btn btn-success">
+                                <i class="bi bi-download"></i> Export
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    {% if current_data %}
+    <div class="alert alert-success">
+        <i class="bi bi-check-circle"></i> Data for {{ months[month-1] }} {{ year }}
+        {% if entered_by %}
+        <span class="float-end">Entered by: {{ entered_by }} on {{ entered_at.strftime('%d %b %Y %H:%M') if entered_at else 'Unknown' }}</span>
+        {% endif %}
+    </div>
+    
+    <!-- KPI Cards - Only show calculated KPIs -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h4 class="mb-3">Key Performance Indicators</h4>
+        </div>
+        {% for kpi in card_kpis %}
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card h-100 shadow-sm border-0">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">{{ kpi.name }}</h6>
+                    <div class="display-4 fw-bold text-primary">
+                        {% if current_data and kpi.field in current_data %}
+                            {% if kpi.unit == 'UGX' %}
+                                {{ "{:,.0f}".format(current_data[kpi.field]) }}
+                            {% else %}
+                                {{ "%.1f"|format(current_data[kpi.field]) }}
+                            {% endif %}
+                        {% else %}0.0{% endif %}
+                    </div>
+                    <small class="text-muted">{{ kpi.unit }}</small>
+                    <div class="mt-2">
+                        <span class="badge bg-info">Auto-calculated</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <!-- 4 Visualizations -->
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <h6><i class="bi bi-bar-chart me-2"></i>Current Month Metrics</h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="barChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <h6><i class="bi bi-pie-chart me-2"></i>Metric Distribution</h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="pieChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <h6><i class="bi bi-graph-up me-2"></i>Monthly Trend - {{ card_kpis[0].name if card_kpis else 'Performance' }}</h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="trendChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <h6><i class="bi bi-speedometer2 me-2"></i>Radar Chart - Department Performance</h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="radarChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Historical Data Table -->
+    {% if historical_data %}
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <h6><i class="bi bi-table me-2"></i>Historical Data</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Period</th>
+                                    {% for kpi in card_kpis[:6] %}
+                                    <th>{{ kpi.name[:15] }}</th>
+                                    {% endfor %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for data in historical_data %}
+                                <tr>
+                                    <td><strong>{{ data._month_name }}</strong></td>
+                                    {% for kpi in card_kpis[:6] %}
+                                    <td>{{ "%.1f"|format(data.get(kpi.field, 0)) }}</td>
+                                    {% endfor %}
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    {% else %}
+    <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle"></i> No data for {{ months[month-1] }} {{ year }}. 
+        <a href="{{ url_for('ward_entry', ward_key=ward_key, year=year, month=month) }}">Click here to enter data</a>
+    </div>
+    {% endif %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const currentData = {{ current_data|tojson }};
+    const kpis = {{ card_kpis|tojson }};
+    const historicalData = {{ historical_data|tojson }};
+    
+    // Bar Chart
+    if (Object.keys(currentData).length > 0 && kpis.length > 0) {
+        const barLabels = [];
+        const barValues = [];
+        for (let i = 0; i < Math.min(kpis.length, 8); i++) {
+            barLabels.push(kpis[i].name.substring(0, 15));
+            barValues.push(currentData[kpis[i].field] || 0);
+        }
+        
+        new Chart(document.getElementById('barChart'), {
+            type: 'bar',
+            data: {
+                labels: barLabels,
+                datasets: [{
+                    data: barValues,
+                    backgroundColor: '#0d6efd',
+                    borderRadius: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, title: { display: true, text: 'Value' } } }
+            }
+        });
+        
+        // Pie Chart
+        const pieLabels = [];
+        const pieValues = [];
+        for (let i = 0; i < Math.min(kpis.length, 5); i++) {
+            const val = currentData[kpis[i].field];
+            if (val > 0) {
+                pieLabels.push(kpis[i].name.substring(0, 12));
+                pieValues.push(val);
+            }
+        }
+        
+        if (pieLabels.length > 0) {
+            new Chart(document.getElementById('pieChart'), {
+                type: 'pie',
+                data: {
+                    labels: pieLabels,
+                    datasets: [{
+                        data: pieValues,
+                        backgroundColor: ['#0d6efd', '#198754', '#ffc107', '#dc3545', '#0dcaf0', '#6f42c1', '#fd7e14']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom' } }
+                }
+            });
+        }
+    }
+    
+    // Trend Chart
+    if (historicalData.length > 0 && kpis.length > 0) {
+        const labels = historicalData.map(d => d._month_name);
+        const values = historicalData.map(d => d[kpis[0].field] || 0);
+        
+        new Chart(document.getElementById('trendChart'), {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: kpis[0].name,
+                    data: values,
+                    borderColor: '#0d6efd',
+                    backgroundColor: 'rgba(13,110,253,0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: true } },
+                scales: { y: { beginAtZero: true, title: { display: true, text: kpis[0].unit } } }
+            }
+        });
+    }
+    
+    // Radar Chart
+    if (Object.keys(currentData).length > 0 && kpis.length > 0) {
+        const radarLabels = [];
+        const radarValues = [];
+        for (let i = 0; i < Math.min(kpis.length, 6); i++) {
+            radarLabels.push(kpis[i].name.substring(0, 12));
+            radarValues.push(currentData[kpis[i].field] || 0);
+        }
+        
+        new Chart(document.getElementById('radarChart'), {
+            type: 'radar',
+            data: {
+                labels: radarLabels,
+                datasets: [{
+                    label: 'Performance %',
+                    data: radarValues,
+                    backgroundColor: 'rgba(13,110,253,0.2)',
+                    borderColor: '#0d6efd',
+                    borderWidth: 2,
+                    pointBackgroundColor: '#0d6efd'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    r: {
+                        beginAtZero: true,
+                        max: 100
+                    }
+                }
+            }
+        });
+    }
+</script>
+{% endblock %}

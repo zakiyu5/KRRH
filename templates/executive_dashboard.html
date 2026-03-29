@@ -1,0 +1,674 @@
+{% extends 'base.html' %}
+{% block content %}
+<style>
+    .executive-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+        cursor: pointer;
+    }
+    .executive-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+    }
+    .stat-number {
+        font-size: 2rem;
+        font-weight: 800;
+        line-height: 1.2;
+    }
+    .trend-up {
+        color: #10b981;
+    }
+    .trend-down {
+        color: #ef4444;
+    }
+    .gauge-container {
+        position: relative;
+        width: 100%;
+        height: 120px;
+    }
+    .kpi-badge {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2px 8px;
+        border-radius: 20px;
+        font-size: 0.7rem;
+    }
+    .dashboard-header {
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        color: white;
+        border-radius: 20px;
+        padding: 20px;
+        margin-bottom: 25px;
+    }
+    .refresh-btn {
+        background: rgba(255,255,255,0.2);
+        border: none;
+        color: white;
+        padding: 8px 20px;
+        border-radius: 30px;
+        transition: all 0.3s;
+    }
+    .refresh-btn:hover {
+        background: rgba(255,255,255,0.3);
+        transform: rotate(180deg);
+    }
+    .department-tab {
+        cursor: pointer;
+        padding: 10px 20px;
+        border-radius: 30px;
+        transition: all 0.3s;
+        background: white;
+        margin: 0 5px;
+        border: 1px solid #e5e7eb;
+    }
+    .department-tab:hover {
+        background: #f3f4f6;
+        transform: translateY(-2px);
+    }
+    .department-tab.active {
+        background: #2a5298;
+        color: white;
+        border-color: #2a5298;
+    }
+    .metric-value {
+        font-size: 1.8rem;
+        font-weight: 700;
+    }
+    .sparkline {
+        width: 100px;
+        height: 40px;
+    }
+    @keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+        100% { transform: scale(1); }
+    }
+    .pulse {
+        animation: pulse 1s ease-in-out;
+    }
+    .date-selector {
+        background: rgba(255,255,255,0.15);
+        border: 1px solid rgba(255,255,255,0.3);
+        color: white;
+        padding: 8px 15px;
+        border-radius: 30px;
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+    .date-selector:hover {
+        background: rgba(255,255,255,0.25);
+    }
+    .date-selector option {
+        background: #1e3c72;
+        color: white;
+    }
+    .date-selector:focus {
+        outline: none;
+        border-color: white;
+    }
+    .month-grid {
+        display: inline-flex;
+        gap: 5px;
+        flex-wrap: wrap;
+    }
+    .month-btn {
+        background: rgba(255,255,255,0.15);
+        border: 1px solid rgba(255,255,255,0.3);
+        color: white;
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .month-btn:hover {
+        background: rgba(255,255,255,0.3);
+        transform: scale(1.05);
+    }
+    .month-btn.active {
+        background: white;
+        color: #1e3c72;
+        border-color: white;
+        font-weight: bold;
+    }
+    .year-selector {
+        background: rgba(255,255,255,0.15);
+        border: 1px solid rgba(255,255,255,0.3);
+        color: white;
+        padding: 8px 15px;
+        border-radius: 30px;
+        cursor: pointer;
+        font-size: 0.9rem;
+    }
+    .year-selector option {
+        background: #1e3c72;
+        color: white;
+    }
+    .control-group {
+        display: flex;
+        gap: 15px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+</style>
+
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="dashboard-header">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <h1 class="display-5 fw-bold mb-2">
+                    <i class="bi bi-speedometer2 me-3"></i>KRRH Executive Dashboard
+                </h1>
+                <p class="mb-0 opacity-75">Real-time hospital performance analytics • All departments integrated</p>
+                <small class="opacity-50">Last updated: <span id="lastUpdated">{{ now.strftime('%d %B %Y, %H:%M:%S') }}</span></small>
+            </div>
+            <div class="col-md-6 text-end">
+                <div class="control-group">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-calendar3"></i>
+                        <select class="year-selector" id="yearSelect" onchange="changeYear(this.value)">
+                            <option value="2022">2022</option>
+                            <option value="2023">2023</option>
+                            <option value="2024">2024</option>
+                            <option value="2025">2025</option>
+                            <option value="2026" selected>2026</option>
+                            <option value="2027">2027</option>
+                            <option value="2028">2028</option>
+                            <option value="2029">2029</option>
+                            <option value="2030">2030</option>
+                            <option value="2031">2031</option>
+                            <option value="2032">2032</option>
+                            <option value="2033">2033</option>
+                            <option value="2034">2034</option>
+                            <option value="2035">2035</option>
+                        </select>
+                    </div>
+                    <div class="month-grid" id="monthGrid">
+                        <!-- Months will be populated by JavaScript -->
+                    </div>
+                    <button class="refresh-btn" onclick="refreshAllData()">
+                        <i class="bi bi-arrow-repeat me-2"></i>Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- KPI Cards Row -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card executive-card h-100 border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <p class="text-muted mb-1"><i class="bi bi-hospital"></i> Total Patients</p>
+                            <h2 class="stat-number" id="totalPatients">0</h2>
+                            <small class="trend-up"><i class="bi bi-arrow-up"></i> +12% vs last month</small>
+                        </div>
+                        <div class="bg-primary bg-opacity-10 p-3 rounded-circle">
+                            <i class="bi bi-people fs-1 text-primary"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card executive-card h-100 border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <p class="text-muted mb-1"><i class="bi bi-activity"></i> Occupancy Rate</p>
+                            <h2 class="stat-number" id="occupancyRate">0%</h2>
+                            <small class="trend-up"><i class="bi bi-arrow-up"></i> +5% vs target</small>
+                        </div>
+                        <div class="bg-success bg-opacity-10 p-3 rounded-circle">
+                            <i class="bi bi-building fs-1 text-success"></i>
+                        </div>
+                    </div>
+                    <div class="progress mt-3" style="height: 8px;">
+                        <div class="progress-bar bg-success" id="occupancyBar" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card executive-card h-100 border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <p class="text-muted mb-1"><i class="bi bi-calculator"></i> Avg Waiting Time</p>
+                            <h2 class="stat-number" id="avgWaitTime">0</h2>
+                            <small class="trend-down"><i class="bi bi-arrow-down"></i> -3 mins improvement</small>
+                        </div>
+                        <div class="bg-warning bg-opacity-10 p-3 rounded-circle">
+                            <i class="bi bi-clock fs-1 text-warning"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card executive-card h-100 border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <p class="text-muted mb-1"><i class="bi bi-emoji-smile"></i> Satisfaction Score</p>
+                            <h2 class="stat-number" id="satisfactionScore">0%</h2>
+                            <small class="trend-up"><i class="bi bi-arrow-up"></i> +8% this quarter</small>
+                        </div>
+                        <div class="bg-info bg-opacity-10 p-3 rounded-circle">
+                            <i class="bi bi-star fs-1 text-info"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Department Tabs -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="d-flex flex-wrap gap-2" id="departmentTabs">
+                <button class="department-tab active" onclick="showDepartment('all')">🏠 All Departments</button>
+                <button class="department-tab" onclick="showDepartment('OPD')">🏥 OPD</button>
+                <button class="department-tab" onclick="showDepartment('Inpatient')">🛏️ Inpatient</button>
+                <button class="department-tab" onclick="showDepartment('Maternity')">🤰 Maternity</button>
+                <button class="department-tab" onclick="showDepartment('Surgery')">🔪 Surgery</button>
+                <button class="department-tab" onclick="showDepartment('Emergency')">🚑 Emergency</button>
+                <button class="department-tab" onclick="showDepartment('Laboratory')">🔬 Lab</button>
+                <button class="department-tab" onclick="showDepartment('Pharmacy')">💊 Pharmacy</button>
+                <button class="department-tab" onclick="showDepartment('HR')">👥 HR</button>
+                <button class="department-tab" onclick="showDepartment('Finance')">💰 Finance</button>
+                <button class="department-tab" onclick="showDepartment('Clinical_EMR')">📊 EMR</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Charts Row -->
+    <div class="row mb-4">
+        <div class="col-lg-8 mb-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0"><i class="bi bi-graph-up me-2"></i> Department Performance Trends</h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="trendChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4 mb-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0"><i class="bi bi-pie-chart me-2"></i> Patient Distribution</h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="pieChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-lg-6 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0"><i class="bi bi-bar-chart me-2"></i> Key Metrics Comparison</h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="barChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0"><i class="bi bi-speedometer2 me-2"></i> Department Performance Radar</h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="radarChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Department Details Table -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-white">
+            <h6 class="mb-0"><i class="bi bi-table me-2"></i> Department Performance Details</h6>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="departmentTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Department</th>
+                            <th>Key Metric</th>
+                            <th>Current Value</th>
+                            <th>Target</th>
+                            <th>Achievement</th>
+                            <th>Status</th>
+                            <th>Trend</th>
+                        </tr>
+                    </thead>
+                    <tbody id="departmentTableBody">
+                        <!-- Dynamic content -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- EMR Utilization Section -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0"><i class="bi bi-laptop me-2"></i> EMR & Digital Health Analytics</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3 text-center">
+                            <h3 id="emrDoctorsRate">0%</h3>
+                            <small class="text-muted">Doctors EMR Usage</small>
+                            <div class="progress mt-2">
+                                <div class="progress-bar bg-primary" id="emrDoctorsBar" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <h3 id="emrNursesRate">0%</h3>
+                            <small class="text-muted">Nurses EMR Usage</small>
+                            <div class="progress mt-2">
+                                <div class="progress-bar bg-success" id="emrNursesBar" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <h3 id="doctorProductivity">0</h3>
+                            <small class="text-muted">Doctor Productivity Score</small>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <h3 id="nurseProductivity">0</h3>
+                            <small class="text-muted">Nurse Productivity Score</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    let currentYear = 2026;
+    let currentMonth = new Date().getMonth() + 1;
+    let allWardData = {};
+    let trendChart, pieChart, barChart, radarChart;
+    
+    const monthNames = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+
+    // Create month buttons
+    function createMonthGrid() {
+        const monthGrid = document.getElementById('monthGrid');
+        monthGrid.innerHTML = '';
+        
+        monthNames.forEach((month, index) => {
+            const monthNum = index + 1;
+            const btn = document.createElement('button');
+            btn.className = 'month-btn' + (monthNum === currentMonth ? ' active' : '');
+            btn.textContent = month.substring(0, 3);
+            btn.title = month;
+            btn.onclick = () => changeMonth(monthNum);
+            monthGrid.appendChild(btn);
+        });
+    }
+
+    // Fetch all ward data
+    async function fetchAllData() {
+        try {
+            const wards = ['OPD', 'Inpatient', 'Maternity', 'Surgery', 'Emergency', 'Laboratory', 'Pharmacy', 'HR', 'Finance', 'Clinical_EMR'];
+            const promises = wards.map(ward => 
+                fetch(`/api/ward-data/${ward}?year=${currentYear}&month=${currentMonth}`).then(res => res.json())
+            );
+            const results = await Promise.all(promises);
+            wards.forEach((ward, idx) => {
+                allWardData[ward] = results[idx];
+            });
+            
+            // Update last updated time
+            document.getElementById('lastUpdated').innerText = new Date().toLocaleString();
+            
+            updateDashboard();
+        } catch (error) {
+            console.error('Error fetching data:', error);
+        }
+    }
+
+    // Update all dashboard components
+    function updateDashboard() {
+        updateKPICards();
+        updateCharts();
+        updateDepartmentTable();
+        updateEMRMetrics();
+    }
+
+    function updateKPICards() {
+        const opd = allWardData['OPD'] || {};
+        const inpatient = allWardData['Inpatient'] || {};
+        
+        const totalPatients = (opd.total_visits || 0) + (inpatient.admissions || 0);
+        document.getElementById('totalPatients').innerText = totalPatients.toLocaleString();
+        
+        const occupancy = inpatient.occupancy_rate || 0;
+        document.getElementById('occupancyRate').innerText = occupancy + '%';
+        document.getElementById('occupancyBar').style.width = Math.min(occupancy, 100) + '%';
+        
+        document.getElementById('avgWaitTime').innerText = (opd.waiting_time || 0) + ' min';
+        document.getElementById('satisfactionScore').innerText = (opd.satisfaction || 0) + '%';
+    }
+
+    function updateCharts() {
+        const departments = ['OPD', 'Inpatient', 'Maternity', 'Surgery', 'Emergency'];
+        const metrics = departments.map(d => {
+            const data = allWardData[d] || {};
+            if (d === 'OPD') return data.utilization_rate || 0;
+            if (d === 'Inpatient') return data.occupancy_rate || 0;
+            if (d === 'Maternity') return data.csection_rate || 0;
+            if (d === 'Surgery') return data.theatre_utilization || 0;
+            if (d === 'Emergency') return data.triage_compliance || 0;
+            return 0;
+        });
+
+        const departmentLabels = ['OPD', 'Inpatient', 'Maternity', 'Surgery', 'Emergency'];
+
+        // Update existing charts or create new ones
+        if (trendChart) trendChart.destroy();
+        if (pieChart) pieChart.destroy();
+        if (barChart) barChart.destroy();
+        if (radarChart) radarChart.destroy();
+
+        const trendCtx = document.getElementById('trendChart').getContext('2d');
+        trendChart = new Chart(trendCtx, {
+            type: 'line',
+            data: {
+                labels: departmentLabels,
+                datasets: [{
+                    label: 'Performance %',
+                    data: metrics,
+                    borderColor: '#2a5298',
+                    backgroundColor: 'rgba(42,82,152,0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.3
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+
+        const pieCtx = document.getElementById('pieChart').getContext('2d');
+        pieChart = new Chart(pieCtx, {
+            type: 'pie',
+            data: {
+                labels: departmentLabels,
+                datasets: [{
+                    data: metrics,
+                    backgroundColor: ['#0d6efd', '#198754', '#ffc107', '#dc3545', '#0dcaf0']
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+
+        const barCtx = document.getElementById('barChart').getContext('2d');
+        barChart = new Chart(barCtx, {
+            type: 'bar',
+            data: {
+                labels: departmentLabels,
+                datasets: [{
+                    label: 'Current Performance',
+                    data: metrics,
+                    backgroundColor: '#2a5298',
+                    borderRadius: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true, max: 100 } }
+            }
+        });
+
+        const radarCtx = document.getElementById('radarChart').getContext('2d');
+        radarChart = new Chart(radarCtx, {
+            type: 'radar',
+            data: {
+                labels: departmentLabels,
+                datasets: [{
+                    label: 'Performance Score',
+                    data: metrics,
+                    backgroundColor: 'rgba(42,82,152,0.2)',
+                    borderColor: '#2a5298',
+                    borderWidth: 2,
+                    pointBackgroundColor: '#2a5298'
+                }]
+            },
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false,
+                scales: { r: { beginAtZero: true, max: 100 } }
+            }
+        });
+    }
+
+    function updateDepartmentTable() {
+        const tbody = document.getElementById('departmentTableBody');
+        tbody.innerHTML = '';
+        
+        const departments = [
+            { key: 'OPD', name: 'Outpatient', metric: 'Utilization Rate', value: allWardData['OPD']?.utilization_rate || 0, target: 85, icon: '🏥' },
+            { key: 'Inpatient', name: 'Inpatient', metric: 'Occupancy Rate', value: allWardData['Inpatient']?.occupancy_rate || 0, target: 80, icon: '🛏️' },
+            { key: 'Maternity', name: 'Maternity', metric: 'C-Section Rate', value: allWardData['Maternity']?.csection_rate || 0, target: 30, icon: '🤰' },
+            { key: 'Surgery', name: 'Surgery', metric: 'Theatre Utilization', value: allWardData['Surgery']?.theatre_utilization || 0, target: 75, icon: '🔪' },
+            { key: 'Emergency', name: 'Emergency', metric: 'Triage Compliance', value: allWardData['Emergency']?.triage_compliance || 0, target: 95, icon: '🚑' },
+            { key: 'Laboratory', name: 'Laboratory', metric: 'Test Turnaround', value: allWardData['Laboratory']?.turnaround_time || 0, target: 24, unit: 'hrs', icon: '🔬' },
+            { key: 'Pharmacy', name: 'Pharmacy', metric: 'Stock-Out Rate', value: allWardData['Pharmacy']?.stockout_rate || 0, target: 5, icon: '💊', invertTarget: true },
+            { key: 'HR', name: 'Human Resources', metric: 'Attendance Rate', value: allWardData['HR']?.attendance_rate || 0, target: 90, icon: '👥' },
+            { key: 'Finance', name: 'Finance', metric: 'Budget Absorption', value: allWardData['Finance']?.budget_absorption || 0, target: 85, icon: '💰' },
+        ];
+
+        departments.forEach(dept => {
+            let achievement, status, trend;
+            const unit = dept.unit || '%';
+            const invertTarget = dept.invertTarget || false;
+            
+            if (invertTarget) {
+                // For metrics where lower is better (like stock-out rate)
+                achievement = dept.value <= dept.target ? 100 : ((dept.target / dept.value) * 100);
+                achievement = Math.min(achievement, 100);
+                status = dept.value <= dept.target ? '✅ Excellent' : '⚠️ High';
+                trend = dept.value < (dept.target * 1.1) ? '↓ Improving' : '↑ Needs attention';
+            } else {
+                achievement = ((dept.value / dept.target) * 100);
+                achievement = Math.min(achievement, 100);
+                status = dept.value >= dept.target ? '✅ On Track' : '⚠️ Below Target';
+                trend = dept.value > (dept.target * 0.9) ? '↑ Improving' : '→ Stable';
+            }
+            
+            const bgClass = dept.value >= dept.target ? 'success' : 'warning';
+            const valueDisplay = dept.value.toFixed(1) + unit;
+            
+            const row = `
+                <tr onclick="showDepartment('${dept.key}')" style="cursor: pointer;">
+                    <td><strong>${dept.icon} ${dept.name}</strong></td>
+                    <td>${dept.metric}</td>
+                    <td class="fw-bold">${valueDisplay}</td>
+                    <td>${dept.target}${unit}</td>
+                    <td>
+                        <div class="progress" style="height: 8px;">
+                            <div class="progress-bar bg-${bgClass}" style="width: ${achievement}%"></div>
+                        </div>
+                        <small>${achievement.toFixed(0)}%</small>
+                    </td>
+                    <td>${status}</td>
+                    <td>${trend}</td>
+                </tr>
+            `;
+            tbody.innerHTML += row;
+        });
+    }
+
+    function updateEMRMetrics() {
+        const hr = allWardData['HR'] || {};
+        const emr = allWardData['Clinical_EMR'] || {};
+        
+        document.getElementById('emrDoctorsRate').innerText = (hr.emr_doctors_rate || 0).toFixed(1) + '%';
+        document.getElementById('emrDoctorsBar').style.width = Math.min((hr.emr_doctors_rate || 0), 100) + '%';
+        document.getElementById('emrNursesRate').innerText = (hr.emr_nurses_rate || 0).toFixed(1) + '%';
+        document.getElementById('emrNursesBar').style.width = Math.min((hr.emr_nurses_rate || 0), 100) + '%';
+        document.getElementById('doctorProductivity').innerText = (emr.doctor_productivity || 0).toFixed(1);
+        document.getElementById('nurseProductivity').innerText = (emr.nurse_productivity || 0).toFixed(1);
+    }
+
+    function showDepartment(dept) {
+        if (dept === 'all') {
+            updateDashboard();
+            // Update active tab styling
+            document.querySelectorAll('.department-tab').forEach(tab => tab.classList.remove('active'));
+            event.target.classList.add('active');
+        } else {
+            window.location.href = `/wards/${dept}/dashboard?year=${currentYear}&month=${currentMonth}`;
+        }
+    }
+
+    function refreshAllData() {
+        const btn = document.querySelector('.refresh-btn');
+        btn.classList.add('pulse');
+        fetchAllData();
+        setTimeout(() => btn.classList.remove('pulse'), 1000);
+    }
+
+    function changeYear(year) {
+        currentYear = parseInt(year);
+        document.getElementById('yearSelect').value = year;
+        fetchAllData();
+    }
+
+    function changeMonth(month) {
+        currentMonth = month;
+        // Update active month button styling
+        document.querySelectorAll('.month-btn').forEach((btn, idx) => {
+            if (idx + 1 === month) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+        fetchAllData();
+    }
+
+    // Initialize
+    createMonthGrid();
+    fetchAllData();
+    setInterval(refreshAllData, 30000); // Auto-refresh every 30 seconds
+</script>
+{% endblock %} 

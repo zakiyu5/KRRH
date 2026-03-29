@@ -1,0 +1,588 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap">
+                        <div>
+                            <h2><i class="bi bi-graph-up"></i> {{ ward.icon }} {{ ward.name }}</h2>
+                            <p class="text-muted">{{ ward.description }}</p>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <select class="form-select" style="width: 120px;" onchange="window.location.href=this.value">
+                                {% for y in year_range %}
+                                <option value="{{ url_for('ward_dashboard', ward_key=ward_key, year=y, month=month) }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+                                {% endfor %}
+                            </select>
+                            <select class="form-select" style="width: 120px;" onchange="window.location.href=this.value">
+                                {% for m in range(1, 13) %}
+                                <option value="{{ url_for('ward_dashboard', ward_key=ward_key, year=year, month=m) }}" {% if m == month %}selected{% endif %}>{{ months[m-1] }}</option>
+                                {% endfor %}
+                            </select>
+                            <a href="{{ url_for('ward_entry', ward_key=ward_key, year=year, month=month) }}" class="btn btn-primary">
+                                <i class="bi bi-pencil"></i> Enter Data
+                            </a>
+                            <a href="{{ url_for('ward_export', ward_key=ward_key) }}" class="btn btn-success">
+                                <i class="bi bi-download"></i> Export
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    {% if current_data %}
+    <div class="alert alert-success">
+        <i class="bi bi-check-circle"></i> Data for {{ months[month-1] }} {{ year }}
+        {% if entered_by %}
+        <span class="float-end">Entered by: {{ entered_by }} on {{ entered_at.strftime('%d %b %Y %H:%M') if entered_at else 'Unknown' }}</span>
+        {% endif %}
+    </div>
+    
+    <!-- Key Insights Cards - Top Performers -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h4 class="mb-3"><i class="bi bi-trophy-fill text-warning"></i> 🏆 Key Insights - Top Performers</h4>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card h-100 shadow-sm border-0 bg-warning bg-opacity-10">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">👨‍⚕️ Highest OPD Presenter (Doctor)</h6>
+                    <div class="display-6 fw-bold text-warning">
+                        {% if current_data and current_data.get('top_doctor_opd', 0) > 0 %}
+                            {{ "%.0f"|format(current_data.top_doctor_opd) }}
+                        {% else %}0{% endif %}
+                    </div>
+                    <small class="text-muted">patients</small>
+                    <div class="mt-2">
+                        <span class="badge bg-warning">{{ current_data.get('top_doctor_name', 'Not recorded') }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card h-100 shadow-sm border-0 bg-info bg-opacity-10">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">👩‍⚕️ Highest Nurse Rounds</h6>
+                    <div class="display-6 fw-bold text-info">
+                        {% if current_data and current_data.get('top_nurse_rounds', 0) > 0 %}
+                            {{ "%.0f"|format(current_data.top_nurse_rounds) }}
+                        {% else %}0{% endif %}
+                    </div>
+                    <small class="text-muted">rounds</small>
+                    <div class="mt-2">
+                        <span class="badge bg-info">{{ current_data.get('top_nurse_name', 'Not recorded') }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card h-100 shadow-sm border-0 bg-success bg-opacity-10">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">🔪 Highest Surgical Load</h6>
+                    <div class="display-6 fw-bold text-success">
+                        {% if current_data and current_data.get('top_surgical_load', 0) > 0 %}
+                            {{ "%.0f"|format(current_data.top_surgical_load) }}
+                        {% else %}0{% endif %}
+                    </div>
+                    <small class="text-muted">surgeries</small>
+                    <div class="mt-2">
+                        <span class="badge bg-success">{{ current_data.get('top_surgeon_name', 'Not recorded') }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card h-100 shadow-sm border-0 bg-danger bg-opacity-10">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">💊 Highest Drug Administration</h6>
+                    <div class="display-6 fw-bold text-danger">
+                        {% if current_data and current_data.get('top_drug_admin', 0) > 0 %}
+                            {{ "%.0f"|format(current_data.top_drug_admin) }}
+                        {% else %}0{% endif %}
+                    </div>
+                    <small class="text-muted">administrations</small>
+                    <div class="mt-2">
+                        <span class="badge bg-danger">{{ current_data.get('top_clinician_name', 'Not recorded') }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Doctor Performance Cards -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h4 class="mb-3"><i class="bi bi-person-badge"></i> 👨‍⚕️ Doctor Performance Metrics</h4>
+        </div>
+        <div class="col-md-4 col-sm-6 mb-3">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">Total OPD Patients Seen</h6>
+                    <div class="display-5 fw-bold text-primary">
+                        {{ "%.0f"|format(current_data.get('opd_patients_seen', 0)) }}
+                    </div>
+                    <small class="text-muted">patients</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 col-sm-6 mb-3">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">Total IPD Patients Seen</h6>
+                    <div class="display-5 fw-bold text-primary">
+                        {{ "%.0f"|format(current_data.get('ipd_patients_seen', 0)) }}
+                    </div>
+                    <small class="text-muted">patients</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 col-sm-6 mb-3">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">Doctor Productivity Score</h6>
+                    <div class="display-5 fw-bold text-success">
+                        {{ "%.1f"|format(current_data.get('doctor_productivity', 0)) }}
+                    </div>
+                    <small class="text-muted">score</small>
+                    <div class="progress mt-2" style="height: 5px;">
+                        <div class="progress-bar bg-success" style="width: {{ min(current_data.get('doctor_productivity', 0), 100) }}%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 col-sm-6 mb-3">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">Total Prescriptions</h6>
+                    <div class="display-6 fw-bold text-info">
+                        {{ "%.0f"|format(current_data.get('prescriptions_done', 0)) }}
+                    </div>
+                    <small class="text-muted">prescriptions</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 col-sm-6 mb-3">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">Drugs Entered in EMR</h6>
+                    <div class="display-6 fw-bold text-info">
+                        {{ "%.0f"|format(current_data.get('drugs_emr', 0)) }}
+                    </div>
+                    <small class="text-muted">entries</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 col-sm-6 mb-3">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">Patients Reviewed on Follow-up</h6>
+                    <div class="display-6 fw-bold text-info">
+                        {{ "%.0f"|format(current_data.get('followup_reviews', 0)) }}
+                    </div>
+                    <small class="text-muted">patients</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Nurse Performance Cards -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h4 class="mb-3"><i class="bi bi-person-standing"></i> 👩‍⚕️ Nurse Performance Metrics</h4>
+        </div>
+        <div class="col-md-4 col-sm-6 mb-3">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">Patients Received (IPD)</h6>
+                    <div class="display-5 fw-bold text-primary">
+                        {{ "%.0f"|format(current_data.get('patients_received_ipd', 0)) }}
+                    </div>
+                    <small class="text-muted">patients</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 col-sm-6 mb-3">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">Patients Served (IPD/OPD)</h6>
+                    <div class="display-5 fw-bold text-primary">
+                        {{ "%.0f"|format(current_data.get('patients_served_nurses', 0)) }}
+                    </div>
+                    <small class="text-muted">patients</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 col-sm-6 mb-3">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">Nurse Rounds Conducted</h6>
+                    <div class="display-5 fw-bold text-success">
+                        {{ "%.0f"|format(current_data.get('nurse_rounds', 0)) }}
+                    </div>
+                    <small class="text-muted">rounds</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 col-sm-6 mb-3">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">Times Involved in Admissions</h6>
+                    <div class="display-6 fw-bold text-info">
+                        {{ "%.0f"|format(current_data.get('admissions_involvement', 0)) }}
+                    </div>
+                    <small class="text-muted">times</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 col-sm-6 mb-3">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">Consumables Accounted</h6>
+                    <div class="display-6 fw-bold text-info">
+                        {{ "%.0f"|format(current_data.get('consumables_accounted', 0)) }}
+                    </div>
+                    <small class="text-muted">times</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 col-sm-6 mb-3">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">Nurse Productivity Score</h6>
+                    <div class="display-5 fw-bold text-success">
+                        {{ "%.1f"|format(current_data.get('nurse_productivity', 0)) }}
+                    </div>
+                    <small class="text-muted">score</small>
+                    <div class="progress mt-2" style="height: 5px;">
+                        <div class="progress-bar bg-success" style="width: {{ min(current_data.get('nurse_productivity', 0), 100) }}%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- EMR & Resource Metrics -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h4 class="mb-3"><i class="bi bi-laptop"></i> 🖥️ EMR & Resource Analytics</h4>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">Days Worked in EMR</h6>
+                    <div class="display-6 fw-bold text-primary">
+                        {{ "%.0f"|format(current_data.get('emr_days_worked', 0)) }}
+                    </div>
+                    <small class="text-muted">days</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">EMR Computer Usage</h6>
+                    <div class="display-6 fw-bold text-primary">
+                        {{ "%.0f"|format(current_data.get('emr_computer_usage', 0)) }}
+                    </div>
+                    <small class="text-muted">sessions</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">EMR Utilization Rate</h6>
+                    <div class="display-6 fw-bold text-success">
+                        {{ "%.1f"|format(current_data.get('emr_utilization_rate', 0)) }}%
+                    </div>
+                    <small class="text-muted">utilization</small>
+                    <div class="progress mt-2" style="height: 5px;">
+                        <div class="progress-bar bg-success" style="width: {{ min(current_data.get('emr_utilization_rate', 0), 100) }}%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">Drug Consumption Variation</h6>
+                    <div class="display-6 fw-bold text-warning">
+                        {{ "%.1f"|format(current_data.get('drug_consumption_var', 0)) }}%
+                    </div>
+                    <small class="text-muted">variation</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Surgical & Ratio Metrics -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h4 class="mb-3"><i class="bi bi-activity"></i> 🔪 Surgical & Workload Analytics</h4>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">Major Surgeries</h6>
+                    <div class="display-6 fw-bold text-primary">
+                        {{ "%.0f"|format(current_data.get('major_surgeries', 0)) }}
+                    </div>
+                    <small class="text-muted">surgeries</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">Minor Surgeries</h6>
+                    <div class="display-6 fw-bold text-primary">
+                        {{ "%.0f"|format(current_data.get('minor_surgeries', 0)) }}
+                    </div>
+                    <small class="text-muted">surgeries</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">Surgical Load Index</h6>
+                    <div class="display-6 fw-bold text-success">
+                        {{ "%.1f"|format(current_data.get('surgical_load_index', 0)) }}
+                    </div>
+                    <small class="text-muted">index</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">Doctor-to-Patient Ratio</h6>
+                    <div class="display-6 fw-bold text-info">
+                        1:{{ "%.0f"|format(current_data.get('doctor_patient_ratio', 0)) }}
+                    </div>
+                    <small class="text-muted">ratio</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 4 Visualizations -->
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <h6><i class="bi bi-bar-chart me-2"></i> Doctor vs Nurse Productivity</h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="productivityChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <h6><i class="bi bi-pie-chart me-2"></i> Workload Distribution</h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="workloadChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <h6><i class="bi bi-graph-up me-2"></i> Monthly Trend - Doctor Productivity</h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="trendChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <h6><i class="bi bi-speedometer2 me-2"></i> EMR Utilization Radar</h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="radarChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Historical Data Table -->
+    {% if historical_data %}
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <h6><i class="bi bi-table me-2"></i> Historical Performance Data</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Period</th>
+                                    <th>OPD Patients</th>
+                                    <th>Doctor Productivity</th>
+                                    <th>Nurse Rounds</th>
+                                    <th>Nurse Productivity</th>
+                                    <th>EMR Utilization</th>
+                                    <th>Surgical Load</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for data in historical_data %}
+                                <tr>
+                                    <td><strong>{{ data._month_name }}</strong></td>
+                                    <td>{{ "%.0f"|format(data.get('opd_patients_seen', 0)) }}</td>
+                                    <td>{{ "%.1f"|format(data.get('doctor_productivity', 0)) }}</td>
+                                    <td>{{ "%.0f"|format(data.get('nurse_rounds', 0)) }}</td>
+                                    <td>{{ "%.1f"|format(data.get('nurse_productivity', 0)) }}</td>
+                                    <td>{{ "%.1f"|format(data.get('emr_utilization_rate', 0)) }}%</td>
+                                    <td>{{ "%.1f"|format(data.get('surgical_load_index', 0)) }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    {% else %}
+    <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle"></i> No data for {{ months[month-1] }} {{ year }}. 
+        <a href="{{ url_for('ward_entry', ward_key=ward_key, year=year, month=month) }}">Click here to enter data</a>
+    </div>
+    {% endif %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const currentData = {{ current_data|tojson }};
+    const historicalData = {{ historical_data|tojson }};
+    
+    // Productivity Comparison Chart
+    if (Object.keys(currentData).length > 0) {
+        new Chart(document.getElementById('productivityChart'), {
+            type: 'bar',
+            data: {
+                labels: ['Doctor Productivity', 'Nurse Productivity', 'EMR Utilization'],
+                datasets: [{
+                    data: [
+                        currentData.doctor_productivity || 0,
+                        currentData.nurse_productivity || 0,
+                        currentData.emr_utilization_rate || 0
+                    ],
+                    backgroundColor: ['#0d6efd', '#198754', '#ffc107'],
+                    borderRadius: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true, max: 100, title: { display: true, text: 'Score / %' } } }
+            }
+        });
+        
+        // Workload Distribution Pie Chart
+        new Chart(document.getElementById('workloadChart'), {
+            type: 'pie',
+            data: {
+                labels: ['OPD Patients', 'IPD Patients', 'Prescriptions', 'Nurse Rounds'],
+                datasets: [{
+                    data: [
+                        currentData.opd_patients_seen || 0,
+                        currentData.ipd_patients_seen || 0,
+                        currentData.prescriptions_done || 0,
+                        currentData.nurse_rounds || 0
+                    ],
+                    backgroundColor: ['#0d6efd', '#198754', '#ffc107', '#dc3545']
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom' } }
+            }
+        });
+    }
+    
+    // Trend Chart
+    if (historicalData.length > 0) {
+        const labels = historicalData.map(d => d._month_name);
+        const values = historicalData.map(d => d.doctor_productivity || 0);
+        
+        new Chart(document.getElementById('trendChart'), {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Doctor Productivity Score',
+                    data: values,
+                    borderColor: '#0d6efd',
+                    backgroundColor: 'rgba(13,110,253,0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true, max: 100 } }
+            }
+        });
+    }
+    
+    // Radar Chart for EMR Utilization
+    if (Object.keys(currentData).length > 0) {
+        new Chart(document.getElementById('radarChart'), {
+            type: 'radar',
+            data: {
+                labels: ['EMR Usage', 'Drug Entry', 'Prescriptions', 'Patient Reviews', 'Nurse Rounds', 'Surgical Load'],
+                datasets: [{
+                    label: 'Performance Metrics',
+                    data: [
+                        currentData.emr_utilization_rate || 0,
+                        Math.min((currentData.drugs_emr || 0) / 10, 100),
+                        Math.min((currentData.prescriptions_done || 0) / 10, 100),
+                        Math.min((currentData.followup_reviews || 0) / 10, 100),
+                        Math.min((currentData.nurse_rounds || 0) / 10, 100),
+                        currentData.surgical_load_index || 0
+                    ],
+                    backgroundColor: 'rgba(13,110,253,0.2)',
+                    borderColor: '#0d6efd',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { r: { beginAtZero: true, max: 100 } }
+            }
+        });
+    }
+</script>
+
+<style>
+    .progress-bar {
+        transition: width 0.3s ease;
+    }
+    .card:hover {
+        transform: translateY(-2px);
+        transition: transform 0.2s;
+    }
+</style>
+{% endblock %}
