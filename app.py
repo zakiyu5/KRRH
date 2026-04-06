@@ -15,6 +15,25 @@ from models import db, User, UserAccessLog, KPICategory, KPIDefinition, KPIEntry
 from models import ReferralHospital, Referral
 from models import create_initial_kpi_categories, create_initial_kpis
 
+# Add this for Render compatibility
+import sys
+import warnings
+
+# Suppress deprecation warnings on Render
+warnings.filterwarnings('ignore', category=DeprecationWarning)
+
+# Fix for Werkzeug URL decode issue
+try:
+    from werkzeug.urls import url_decode
+except ImportError:
+    # For newer versions of Werkzeug
+    from urllib.parse import unquote
+    def url_decode(s, charset='utf-8', decode_keys=False, include_empty=True, 
+                   separator='&', cls=None, **kwargs):
+        return {k: v for k, v in [p.split('=') for p in s.split(separator)]}
+    import werkzeug
+    werkzeug.urls = type('obj', (object,), {'url_decode': url_decode})()
+
 # Initialize Flask app
 app = Flask(__name__)
 
@@ -1240,3 +1259,4 @@ if __name__ == '__main__':
     print("="*60 + "\n")
     
     app.run(debug=True, host='0.0.0.0', port=8080)
+
