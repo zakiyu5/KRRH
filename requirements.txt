@@ -1,5 +1,5 @@
 # KRRH InsightHub - Production Dependencies
-# Tested and working on Render.com
+# Tested on Python 3.11 with Render.com
 
 Flask==2.2.5
 Flask-Login==0.6.2
