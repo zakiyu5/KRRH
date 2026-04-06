@@ -1,4 +1,4 @@
-# app.py - Complete Fixed Version with Clinical_EMR
+# app.py - Complete Version with Enhanced User Management
 
 import os
 import json
@@ -53,9 +53,16 @@ def init_database():
             admin = User(
                 username='admin',
                 email='admin@krrh.go.ug',
+                phone_number='+256700000000',
                 password_hash=generate_password_hash('Admin@123'),
                 full_name='System Administrator',
-                role='admin'
+                role='admin',
+                department='Administration',
+                allowed_wards='[]',
+                is_active=True,
+                is_paused=False,
+                password_set_date=datetime.utcnow(),
+                password_expiry_days=90
             )
             db.session.add(admin)
             db.session.commit()
@@ -95,7 +102,37 @@ def utility_processor():
         if a is None or b is None:
             return 0
         return min(a, b)
-    return {'min': min_value}
+    
+    def from_json(json_str):
+        try:
+            return json.loads(json_str) if json_str else []
+        except:
+            return []
+    
+    return {'min': min_value, 'from_json': from_json}
+
+
+
+## context 
+@app.context_processor
+def utility_processor():
+    def min_value(a, b):
+        if a is None or b is None:
+            return 0
+        return min(a, b)
+    
+    def from_json(json_str):
+        try:
+            if json_str:
+                return json.loads(json_str)
+            return []
+        except:
+            return []
+    
+    return {'min': min_value, 'from_json': from_json}
+
+# registering jinja filterss
+app.jinja_env.filters['from_json'] = lambda s: json.loads(s) if s else []
 
 # ===================== AUTH ROUTES =====================
 
@@ -116,19 +153,80 @@ def login():
         user = User.query.filter_by(username=username).first()
         
         if user and check_password_hash(user.password_hash, password):
+            # Check if account is paused
+            if user.is_paused:
+                flash('Your account has been paused. Please contact administrator.', 'danger')
+                # Log failed attempt
+                log = UserAccessLog(
+                    user_id=user.id,
+                    action='login',
+                    status='paused',
+                    ip_address=request.remote_addr,
+                    user_agent=request.headers.get('User-Agent'),
+                    details='Account paused'
+                )
+                db.session.add(log)
+                db.session.commit()
+                return render_template('landing.html')
+            
+            # Check if account is active
+            if not user.is_active:
+                flash('Your account is inactive. Please contact administrator.', 'danger')
+                return render_template('landing.html')
+            
+            # Check password expiry
+            days_since_set = (datetime.utcnow() - user.password_set_date).days if user.password_set_date else 0
+            if days_since_set >= user.password_expiry_days:
+                flash('Your password has expired. Please reset your password.', 'warning')
+                # Log password expiry
+                log = UserAccessLog(
+                    user_id=user.id,
+                    action='login',
+                    status='expired',
+                    ip_address=request.remote_addr,
+                    user_agent=request.headers.get('User-Agent'),
+                    details='Password expired'
+                )
+                db.session.add(log)
+                db.session.commit()
+            
             login_user(user)
             user.last_login = datetime.utcnow()
+            
+            # Log successful login
+            log = UserAccessLog(
+                user_id=user.id,
+                action='login',
+                status='success',
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get('User-Agent'),
+                details=f'Logged in from {request.remote_addr}'
+            )
+            db.session.add(log)
             db.session.commit()
+            
             flash(f'Welcome {user.full_name}!', 'success')
             return redirect(url_for('dashboard'))
         else:
             flash('Invalid username or password', 'danger')
     
     return render_template('landing.html')
-
+    
 @app.route('/logout')
 @login_required
 def logout():
+    # Log logout
+    log = UserAccessLog(
+        user_id=current_user.id,
+        action='logout',
+        status='success',
+        ip_address=request.remote_addr,
+        user_agent=request.headers.get('User-Agent'),
+        details='User logged out'
+    )
+    db.session.add(log)
+    db.session.commit()
+    
     logout_user()
     flash('Logged out', 'info')
     return redirect(url_for('index'))
@@ -523,6 +621,11 @@ def wards_list():
 @app.route('/wards/<ward_key>/dashboard')
 @login_required
 def ward_dashboard(ward_key):
+    # Check if user has access to this ward
+    if not current_user.can_access_ward(ward_key) and current_user.role != 'admin':
+        flash('You do not have permission to access this department', 'danger')
+        return redirect(url_for('wards_list'))
+    
     if ward_key not in WARD_PARAMETERS:
         flash('Ward not found', 'danger')
         return redirect(url_for('wards_list'))
@@ -588,6 +691,11 @@ def ward_dashboard(ward_key):
 @app.route('/wards/<ward_key>/entry', methods=['GET', 'POST'])
 @login_required
 def ward_entry(ward_key):
+    # Check if user has access to this ward
+    if not current_user.can_access_ward(ward_key) and current_user.role != 'admin':
+        flash('You do not have permission to enter data for this department', 'danger')
+        return redirect(url_for('wards_list'))
+    
     if ward_key not in WARD_PARAMETERS:
         flash('Ward not found', 'danger')
         return redirect(url_for('wards_list'))
@@ -783,7 +891,7 @@ def admin_users():
         flash('Access denied', 'danger')
         return redirect(url_for('dashboard'))
     users = User.query.all()
-    return render_template('admin/users.html', users=users)
+    return render_template('admin/users.html', users=users, now=datetime.now())
 
 @app.route('/admin/users/new', methods=['POST'])
 @login_required
@@ -792,17 +900,234 @@ def admin_user_new():
         flash('Access denied', 'danger')
         return redirect(url_for('dashboard'))
     
+    # Validate password match
+    if request.form.get('password') != request.form.get('confirm_password'):
+        flash('Passwords do not match', 'danger')
+        return redirect(url_for('admin_users'))
+    
+    # Check if user exists
+    if User.query.filter_by(username=request.form.get('username')).first():
+        flash('Username already exists', 'danger')
+        return redirect(url_for('admin_users'))
+    
+    if User.query.filter_by(email=request.form.get('email')).first():
+        flash('Email already registered', 'danger')
+        return redirect(url_for('admin_users'))
+    
+    # Get allowed wards
+    allowed_wards = request.form.getlist('allowed_wards')
+    
     user = User(
         username=request.form.get('username'),
-        email=request.form.get('email'),
         full_name=request.form.get('full_name'),
+        email=request.form.get('email'),
+        phone_number=request.form.get('phone_number'),
         role=request.form.get('role'),
         department=request.form.get('department'),
-        password_hash=generate_password_hash(request.form.get('password'))
+        allowed_wards=json.dumps(allowed_wards) if allowed_wards else '[]',
+        password_hash=generate_password_hash(request.form.get('password')),
+        password_set_date=datetime.utcnow(),
+        password_expiry_days=int(request.form.get('password_expiry_days', 90)),
+        created_by=current_user.id,
+        is_active=True,
+        is_paused=False
     )
+    
     db.session.add(user)
     db.session.commit()
-    flash(f'User {user.username} created', 'success')
+    
+    # Log the action
+    log = UserAccessLog(
+        user_id=user.id,
+        action='user_created',
+        status='success',
+        ip_address=request.remote_addr,
+        user_agent=request.headers.get('User-Agent'),
+        details=f'User created by {current_user.username}'
+    )
+    db.session.add(log)
+    db.session.commit()
+    
+    flash(f'User {user.username} created successfully', 'success')
+    return redirect(url_for('admin_users'))
+
+@app.route('/admin/users/<int:user_id>/edit')
+@login_required
+def admin_user_edit_json(user_id):
+    """Get user data for editing"""
+    if current_user.role != 'admin':
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    user = User.query.get_or_404(user_id)
+    return jsonify({
+        'id': user.id,
+        'username': user.username,
+        'full_name': user.full_name,
+        'email': user.email,
+        'phone_number': user.phone_number,
+        'role': user.role,
+        'department': user.department,
+        'allowed_wards': json.loads(user.allowed_wards) if user.allowed_wards else [],
+        'password_expiry_days': user.password_expiry_days
+    })
+
+@app.route('/admin/users/<int:user_id>/update', methods=['POST'])
+@login_required
+def admin_user_update(user_id):
+    """Update user information"""
+    if current_user.role != 'admin':
+        flash('Access denied', 'danger')
+        return redirect(url_for('admin_users'))
+    
+    user = User.query.get_or_404(user_id)
+    
+    user.username = request.form.get('username')
+    user.full_name = request.form.get('full_name')
+    user.email = request.form.get('email')
+    user.phone_number = request.form.get('phone_number')
+    user.role = request.form.get('role')
+    user.department = request.form.get('department')
+    user.password_expiry_days = request.form.get('password_expiry_days', type=int)
+    
+    db.session.commit()
+    
+    # Log the action
+    log = UserAccessLog(
+        user_id=user.id,
+        action='user_updated',
+        status='success',
+        ip_address=request.remote_addr,
+        user_agent=request.headers.get('User-Agent'),
+        details=f'User updated by {current_user.username}'
+    )
+    db.session.add(log)
+    db.session.commit()
+    
+    flash(f'User {user.username} updated successfully', 'success')
+    return redirect(url_for('admin_users'))
+
+@app.route('/admin/users/<int:user_id>/pause')
+@login_required
+def admin_user_pause(user_id):
+    """Pause user account"""
+    if current_user.role != 'admin':
+        flash('Access denied', 'danger')
+        return redirect(url_for('admin_users'))
+    
+    user = User.query.get_or_404(user_id)
+    if user.id == current_user.id:
+        flash('You cannot pause your own account', 'danger')
+        return redirect(url_for('admin_users'))
+    
+    user.is_paused = True
+    user.is_active = False
+    
+    # Log the action
+    log = UserAccessLog(
+        user_id=user.id,
+        action='session_paused',
+        status='paused',
+        ip_address=request.remote_addr,
+        user_agent=request.headers.get('User-Agent'),
+        details=f'Account paused by {current_user.username}'
+    )
+    db.session.add(log)
+    db.session.commit()
+    
+    flash(f'User {user.username} account paused', 'success')
+    return redirect(url_for('admin_users'))
+
+@app.route('/admin/users/<int:user_id>/resume')
+@login_required
+def admin_user_resume(user_id):
+    """Resume user account"""
+    if current_user.role != 'admin':
+        flash('Access denied', 'danger')
+        return redirect(url_for('admin_users'))
+    
+    user = User.query.get_or_404(user_id)
+    user.is_paused = False
+    user.is_active = True
+    
+    # Log the action
+    log = UserAccessLog(
+        user_id=user.id,
+        action='session_resumed',
+        status='success',
+        ip_address=request.remote_addr,
+        user_agent=request.headers.get('User-Agent'),
+        details=f'Account resumed by {current_user.username}'
+    )
+    db.session.add(log)
+    db.session.commit()
+    
+    flash(f'User {user.username} account resumed', 'success')
+    return redirect(url_for('admin_users'))
+
+@app.route('/admin/users/<int:user_id>/reset-password')
+@login_required
+def admin_user_reset_password(user_id):
+    """Reset user password"""
+    if current_user.role != 'admin':
+        flash('Access denied', 'danger')
+        return redirect(url_for('admin_users'))
+    
+    user = User.query.get_or_404(user_id)
+    new_password = request.args.get('password')
+    
+    if new_password and len(new_password) >= 8:
+        user.password_hash = generate_password_hash(new_password)
+        user.password_set_date = datetime.utcnow()
+        
+        # Log password reset
+        log = UserAccessLog(
+            user_id=user.id,
+            action='password_change',
+            status='success',
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent'),
+            details=f'Password reset by {current_user.username}'
+        )
+        db.session.add(log)
+        db.session.commit()
+        
+        flash(f'Password reset for {user.username}', 'success')
+    else:
+        flash('Password must be at least 8 characters', 'danger')
+    
+    return redirect(url_for('admin_users'))
+
+@app.route('/admin/users/<int:user_id>/delete')
+@login_required
+def admin_user_delete(user_id):
+    """Delete user account"""
+    if current_user.role != 'admin':
+        flash('Access denied', 'danger')
+        return redirect(url_for('admin_users'))
+    
+    user = User.query.get_or_404(user_id)
+    if user.id == current_user.id:
+        flash('You cannot delete your own account', 'danger')
+        return redirect(url_for('admin_users'))
+    
+    username = user.username
+    
+    # Log before deletion
+    log = UserAccessLog(
+        user_id=user.id,
+        action='user_deleted',
+        status='success',
+        ip_address=request.remote_addr,
+        user_agent=request.headers.get('User-Agent'),
+        details=f'User deleted by {current_user.username}'
+    )
+    db.session.add(log)
+    db.session.commit()
+    
+    db.session.delete(user)
+    db.session.commit()
+    
+    flash(f'User {username} deleted', 'success')
     return redirect(url_for('admin_users'))
 
 @app.route('/admin/users/export')
@@ -815,11 +1140,20 @@ def admin_users_export():
     users = User.query.all()
     output = StringIO()
     writer = csv.writer(output)
-    writer.writerow(['Username', 'Full Name', 'Email', 'Role', 'Department', 'Created', 'Last Login'])
+    writer.writerow(['Username', 'Full Name', 'Email', 'Phone', 'Role', 'Department', 'Status', 'Last Login', 'Created At'])
     for user in users:
-        writer.writerow([user.username, user.full_name, user.email or '', user.role,
-                        user.department or '', user.created_at.strftime('%Y-%m-%d') if user.created_at else '',
-                        user.last_login.strftime('%Y-%m-%d') if user.last_login else ''])
+        status = 'Paused' if user.is_paused else ('Active' if user.is_active else 'Inactive')
+        writer.writerow([
+            user.username, 
+            user.full_name, 
+            user.email or '', 
+            user.phone_number or '',
+            user.role,
+            user.department or '',
+            status,
+            user.last_login.strftime('%Y-%m-%d %H:%M') if user.last_login else '',
+            user.created_at.strftime('%Y-%m-%d') if user.created_at else ''
+        ])
     output.seek(0)
     response = make_response(output.getvalue())
     response.headers['Content-Disposition'] = 'attachment; filename=krrh_users.csv'
@@ -832,13 +1166,13 @@ def admin_logs():
     if current_user.role != 'admin':
         flash('Access denied', 'danger')
         return redirect(url_for('dashboard'))
-    days = request.args.get('days', 7, type=int)
+    days = request.args.get('days', 30, type=int)
     since = datetime.utcnow() - timedelta(days=days)
     logs = UserAccessLog.query.filter(UserAccessLog.login_time >= since).order_by(UserAccessLog.login_time.desc()).all()
-    return render_template('admin/logs.html', logs=logs, days=days)
+    return render_template('admin/logs.html', logs=logs, days=days, now=datetime.now())
 
+# ===================== API ENDPOINTS =====================
 
-#executive dashboard
 @app.route('/api/ward-data/<ward_key>')
 @login_required
 def api_ward_data(ward_key):
@@ -859,13 +1193,14 @@ def api_ward_data(ward_key):
         return jsonify(json.loads(existing.data))
     return jsonify({})
 
+# ===================== EXECUTIVE DASHBOARD =====================
 
-#  excutive dashboard 
 @app.route('/executive-dashboard')
 @login_required
 def executive_dashboard():
     """Executive Dashboard - PowerBI style overview"""
     return render_template('executive_dashboard.html', now=datetime.now())
+
 # ===================== RECEPTION =====================
 
 @app.route('/reception')
@@ -898,6 +1233,8 @@ if __name__ == '__main__':
     print(f"   Login: http://127.0.0.1:8080/login")
     print(f"   Dashboard: http://127.0.0.1:8080/dashboard")
     print(f"   Wards: http://127.0.0.1:8080/wards")
+    print(f"   Executive Dashboard: http://127.0.0.1:8080/executive-dashboard")
+    print(f"   Admin Users: http://127.0.0.1:8080/admin/users")
     print(f"   Reception: http://127.0.0.1:8080/reception")
     print(f"\n👤 Default Admin: admin / Admin@123")
     print("="*60 + "\n")

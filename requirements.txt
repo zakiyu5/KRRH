@@ -58,3 +58,36 @@ debugpy==1.8.0
 # Testing (optional)
 pytest==7.4.3
 pytest-cov==4.1.0
+# ============================================
+# KRRH InsightHub - Hospital Management System
+# Production Requirements for Render
+# ============================================
+
+# Flask Core
+Flask==2.3.3
+Flask-Login==0.6.2
+Flask-SQLAlchemy==3.1.1
+Werkzeug==2.3.7
+Jinja2==3.1.2
+
+# Database
+SQLAlchemy==2.0.22
+
+# Authentication
+bcrypt==4.0.1
+cryptography==41.0.7
+
+# Environment & Config
+python-dotenv==1.0.0
+
+# Date/Time
+python-dateutil==2.8.2
+
+# Production Server (CRITICAL for Render)
+gunicorn==21.2.0
+
+# Excel Support (if needed)
+openpyxl==3.1.2
+
+# File Handling (if needed)
+Pillow==10.1.0

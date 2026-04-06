@@ -1,105 +1,264 @@
 {% extends 'base.html' %}
 {% block content %}
+<style>
+    .password-toggle {
+        position: relative;
+    }
+    .password-toggle .toggle-password {
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        cursor: pointer;
+        color: #6c757d;
+    }
+    .department-checkbox-group {
+        max-height: 200px;
+        overflow-y: auto;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 10px;
+    }
+    .status-badge {
+        padding: 4px 8px;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    .status-active {
+        background: #d1e7dd;
+        color: #0f5132;
+    }
+    .status-paused {
+        background: #f8d7da;
+        color: #842029;
+    }
+    .status-expired {
+        background: #fff3cd;
+        color: #856404;
+    }
+    .password-strength {
+        height: 4px;
+        margin-top: 5px;
+        border-radius: 2px;
+        transition: all 0.3s;
+    }
+    .strength-weak { width: 25%; background: #dc3545; }
+    .strength-fair { width: 50%; background: #ffc107; }
+    .strength-good { width: 75%; background: #0dcaf0; }
+    .strength-strong { width: 100%; background: #198754; }
+    .badge-admin { background: #dc3545; }
+    .badge-manager { background: #0d6efd; }
+    .badge-data_entry { background: #6c757d; }
+</style>
+
 <div class="container-fluid">
     <div class="row mb-4">
         <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <h2>User Management</h2>
-                <div>
-                    <a href="{{ url_for('admin_users_export') }}" class="btn btn-success me-2">
-                        <i class="bi bi-download me-2"></i>Export CSV
-                    </a>
-                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newUserModal">
-                        <i class="bi bi-person-plus me-2"></i>Add User
-                    </button>
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h2><i class="bi bi-people"></i> User Management</h2>
+                            <p class="text-muted">Manage system users, permissions, and access controls</p>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addUserModal">
+                                <i class="bi bi-person-plus"></i> Add New User
+                            </button>
+                            <a href="{{ url_for('admin_users_export') }}" class="btn btn-info">
+                                <i class="bi bi-download"></i> Export Users
+                            </a>
+                            <a href="{{ url_for('admin_logs') }}" class="btn btn-secondary">
+                                <i class="bi bi-clock-history"></i> View Logs
+                            </a>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-    
-    <div class="row">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-body">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Username</th>
-                                <th>Full Name</th>
-                                <th>Email</th>
-                                <th>Role</th>
-                                <th>Department</th>
-                                <th>Last Login</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for user in users %}
-                            <tr>
-                                <td><strong>{{ user.username }}</strong></td>
-                                <td>{{ user.full_name }}</td>
-                                <td>{{ user.email|default('-') }}</td>
-                                <td>
-                                    <span class="badge bg-{{ 'danger' if user.role == 'admin' else 'info' }}">
-                                        {{ user.role|title }}
-                                    </span>
-                                </td>
-                                <td>{{ user.department|default('-') }}</td>
-                                <td>{{ user.last_login.strftime('%Y-%m-%d') if user.last_login else 'Never' }}</td>
-                                <td>
-                                    {% if user.is_active %}
-                                    <span class="badge bg-success">Active</span>
-                                    {% else %}
-                                    <span class="badge bg-secondary">Inactive</span>
+
+    <!-- Users Table -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-white">
+            <h6 class="mb-0"><i class="bi bi-table"></i> System Users</h6>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Username</th>
+                            <th>Full Name</th>
+                            <th>Email</th>
+                            <th>Phone</th>
+                            <th>Role</th>
+                            <th>Department</th>
+                            <th>Allowed Wards</th>
+                            <th>Last Login</th>
+                            <th>Password Status</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        <tr>
+                            <td><strong>{{ user.username }}</strong></td>
+                            <td>{{ user.full_name }}</td>
+                            <td>{{ user.email }}</td>
+                            <td>{{ user.phone_number or '-' }}</td>
+                            <td>
+                                <span class="badge badge-{{ user.role }}">
+                                    {{ user.role|replace('_', ' ')|title }}
+                                </span>
+                            </td>
+                            <td>{{ user.department or 'All' }}</td>
+                            <td>
+                                {% if user.allowed_wards %}
+                                    {% set wards = user.allowed_wards %}
+                                    {% if wards is string %}
+                                        {% set wards = wards|from_json %}
                                     {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+                                    {% for ward in wards[:2] %}
+                                        <span class="badge bg-info">{{ ward }}</span>
+                                    {% endfor %}
+                                    {% if wards|length > 2 %}
+                                        <span class="badge bg-secondary">+{{ wards|length - 2 }}</span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-muted">All wards</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ user.last_login.strftime('%Y-%m-%d') if user.last_login else 'Never' }}</td>
+                            <td>
+                                {% set days_since = (now - user.password_set_date).days if user.password_set_date else 0 %}
+                                {% set days_left = user.password_expiry_days - days_since %}
+                                {% if days_left <= 0 %}
+                                    <span class="status-badge status-expired">Expired</span>
+                                {% elif days_left <= 14 %}
+                                    <span class="status-badge" style="background:#fff3cd;color:#856404;">Expires in {{ days_left }} days</span>
+                                {% else %}
+                                    <span class="text-success">{{ days_left }} days left</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if user.is_paused %}
+                                    <span class="status-badge status-paused">Paused</span>
+                                {% elif user.is_active %}
+                                    <span class="status-badge status-active">Active</span>
+                                {% else %}
+                                    <span class="status-badge" style="background:#e2e3e5;">Inactive</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-primary" onclick="editUser({{ user.id }})">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    {% if not user.is_paused %}
+                                    <button class="btn btn-outline-warning" onclick="pauseUser({{ user.id }})">
+                                        <i class="bi bi-pause-circle"></i>
+                                    </button>
+                                    {% else %}
+                                    <button class="btn btn-outline-success" onclick="resumeUser({{ user.id }})">
+                                        <i class="bi bi-play-circle"></i>
+                                    </button>
+                                    {% endif %}
+                                    <button class="btn btn-outline-info" onclick="resetPassword({{ user.id }})">
+                                        <i class="bi bi-key"></i>
+                                    </button>
+                                    {% if user.role != 'admin' %}
+                                    <button class="btn btn-outline-danger" onclick="deleteUser({{ user.id }})">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
 </div>
 
-<!-- New User Modal -->
-<div class="modal fade" id="newUserModal" tabindex="-1">
-    <div class="modal-dialog">
+<!-- Add User Modal -->
+<div class="modal fade" id="addUserModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Add New User</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-person-plus"></i> Add New User</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <form method="POST" action="{{ url_for('admin_user_new') }}">
+            <form id="addUserForm" method="POST" action="{{ url_for('admin_user_new') }}">
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Username</label>
-                        <input type="text" class="form-control" name="username" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Full Name</label>
-                        <input type="text" class="form-control" name="full_name" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Email</label>
-                        <input type="email" class="form-control" name="email">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Password</label>
-                        <input type="password" class="form-control" name="password" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Role</label>
-                        <select class="form-select" name="role">
-                            <option value="data_entry">Data Entry</option>
-                            <option value="manager">Manager</option>
-                            <option value="admin">Admin</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Department</label>
-                        <input type="text" class="form-control" name="department">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Username *</label>
+                            <input type="text" class="form-control" name="username" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Full Name *</label>
+                            <input type="text" class="form-control" name="full_name" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Email *</label>
+                            <input type="email" class="form-control" name="email" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Phone Number</label>
+                            <input type="tel" class="form-control" name="phone_number" placeholder="+256...">
+                        </div>
+                        <div class="col-md-6 mb-3 password-toggle">
+                            <label class="form-label">Password *</label>
+                            <input type="password" class="form-control" name="password" id="newPassword" required>
+                            <i class="bi bi-eye toggle-password" onclick="togglePassword('newPassword')" style="position: absolute; right: 15px; top: 38px; cursor: pointer;"></i>
+                            <div class="password-strength" id="passwordStrength"></div>
+                            <small class="text-muted">Minimum 8 characters with letters and numbers</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Confirm Password *</label>
+                            <input type="password" class="form-control" name="confirm_password" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Role *</label>
+                            <select class="form-select" name="role" id="roleSelect" required>
+                                <option value="data_entry">Data Entry</option>
+                                <option value="manager">Manager</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Department</label>
+                            <input type="text" class="form-control" name="department" placeholder="e.g., OPD, Maternity">
+                        </div>
+                        <div class="col-12 mb-3">
+                            <label class="form-label">Allowed Wards/Departments</label>
+                            <div class="department-checkbox-group">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="allWards" onclick="toggleAllWards(this)">
+                                    <label class="form-check-label fw-bold">All Wards</label>
+                                </div>
+                                <hr>
+                                {% set wards = ['OPD', 'Inpatient', 'Maternity', 'Paediatrics', 'Surgery', 'Emergency', 
+                                                'Laboratory', 'Pharmacy', 'HIV_TB', 'Radiology', 'Dental', 'Eye', 
+                                                'Psychiatry', 'ENT', 'Physiotherapy', 'Private_Wing', 'Chronic_Care', 
+                                                'ANC', 'HR', 'Finance', 'Clinical_EMR'] %}
+                                {% for ward in wards %}
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input ward-checkbox" type="checkbox" name="allowed_wards" value="{{ ward }}">
+                                    <label class="form-check-label">{{ ward }}</label>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Password Expiry (days)</label>
+                            <input type="number" class="form-control" name="password_expiry_days" value="90">
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -110,4 +269,146 @@
         </div>
     </div>
 </div>
+
+<!-- Edit User Modal -->
+<div class="modal fade" id="editUserModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title"><i class="bi bi-pencil-square"></i> Edit User</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="editUserForm" method="POST">
+                <div class="modal-body">
+                    <div id="editUserContent"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    function togglePassword(fieldId) {
+        const field = document.getElementById(fieldId);
+        const icon = event.target;
+        if (field.type === "password") {
+            field.type = "text";
+            icon.classList.remove('bi-eye');
+            icon.classList.add('bi-eye-slash');
+        } else {
+            field.type = "password";
+            icon.classList.remove('bi-eye-slash');
+            icon.classList.add('bi-eye');
+        }
+    }
+
+    // Password strength checker
+    document.getElementById('newPassword')?.addEventListener('input', function() {
+        const password = this.value;
+        const strengthDiv = document.getElementById('passwordStrength');
+        let strength = 0;
+        
+        if (password.length >= 8) strength++;
+        if (password.match(/[a-z]/) && password.match(/[A-Z]/)) strength++;
+        if (password.match(/\d/)) strength++;
+        if (password.match(/[^a-zA-Z\d]/)) strength++;
+        
+        strengthDiv.className = 'password-strength';
+        if (strength === 1) strengthDiv.classList.add('strength-weak');
+        else if (strength === 2) strengthDiv.classList.add('strength-fair');
+        else if (strength === 3) strengthDiv.classList.add('strength-good');
+        else if (strength >= 4) strengthDiv.classList.add('strength-strong');
+        else strengthDiv.style.width = '0';
+    });
+
+    function toggleAllWards(checkbox) {
+        const checkboxes = document.querySelectorAll('.ward-checkbox');
+        checkboxes.forEach(cb => cb.checked = checkbox.checked);
+    }
+
+    function editUser(userId) {
+        fetch(`/admin/users/${userId}/edit`)
+            .then(response => response.json())
+            .then(data => {
+                const modal = document.getElementById('editUserModal');
+                const content = document.getElementById('editUserContent');
+                content.innerHTML = `
+                    <input type="hidden" name="user_id" value="${data.id}">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Username</label>
+                            <input type="text" class="form-control" name="username" value="${data.username}" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Full Name</label>
+                            <input type="text" class="form-control" name="full_name" value="${data.full_name}" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Email</label>
+                            <input type="email" class="form-control" name="email" value="${data.email}" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Phone Number</label>
+                            <input type="tel" class="form-control" name="phone_number" value="${data.phone_number || ''}">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Role</label>
+                            <select class="form-select" name="role">
+                                <option value="data_entry" ${data.role === 'data_entry' ? 'selected' : ''}>Data Entry</option>
+                                <option value="manager" ${data.role === 'manager' ? 'selected' : ''}>Manager</option>
+                                <option value="admin" ${data.role === 'admin' ? 'selected' : ''}>Admin</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Department</label>
+                            <input type="text" class="form-control" name="department" value="${data.department || ''}">
+                        </div>
+                        <div class="col-12 mb-3">
+                            <label class="form-label">Password Expiry (days)</label>
+                            <input type="number" class="form-control" name="password_expiry_days" value="${data.password_expiry_days}">
+                        </div>
+                    </div>
+                `;
+                document.getElementById('editUserForm').action = `/admin/users/${userId}/update`;
+                new bootstrap.Modal(modal).show();
+            });
+    }
+
+    function pauseUser(userId) {
+        if (confirm('Are you sure you want to pause this user? They will not be able to log in.')) {
+            window.location.href = `/admin/users/${userId}/pause`;
+        }
+    }
+
+    function resumeUser(userId) {
+        if (confirm('Resume this user account?')) {
+            window.location.href = `/admin/users/${userId}/resume`;
+        }
+    }
+
+    function resetPassword(userId) {
+        const newPassword = prompt('Enter new password for user (minimum 8 characters):');
+        if (newPassword && newPassword.length >= 8) {
+            window.location.href = `/admin/users/${userId}/reset-password?password=${encodeURIComponent(newPassword)}`;
+        } else if (newPassword) {
+            alert('Password must be at least 8 characters long!');
+        }
+    }
+
+    function deleteUser(userId) {
+        if (confirm('WARNING: This action cannot be undone. Delete this user?')) {
+            window.location.href = `/admin/users/${userId}/delete`;
+        }
+    }
+</script>
+
+<style>
+    .badge-admin { background-color: #dc3545; color: white; }
+    .badge-manager { background-color: #0d6efd; color: white; }
+    .badge-data_entry { background-color: #6c757d; color: white; }
+</style>
 {% endblock %}

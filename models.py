@@ -13,19 +13,64 @@ class User(UserMixin, db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=True)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    phone_number = db.Column(db.String(20), nullable=True)  # Added phone number
     password_hash = db.Column(db.String(200), nullable=False)
     full_name = db.Column(db.String(100), nullable=False)
-    role = db.Column(db.String(50), nullable=False, default='data_entry')
+    role = db.Column(db.String(50), nullable=False, default='data_entry')  # admin, manager, data_entry
     department = db.Column(db.String(100), nullable=True)
+    
+    # New fields for enhanced user management
+    allowed_wards = db.Column(db.Text, default='[]')  # JSON array of allowed wards
     is_active = db.Column(db.Boolean, default=True)
+    is_paused = db.Column(db.Boolean, default=False)  # Account can be paused
+    password_set_date = db.Column(db.DateTime, default=datetime.utcnow)
+    password_expiry_days = db.Column(db.Integer, default=90)
+    
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
     last_login = db.Column(db.DateTime, nullable=True)
     
     # Relationships
     access_logs = db.relationship('UserAccessLog', backref='user', lazy=True, cascade='all, delete-orphan')
     kpi_entries = db.relationship('KPIEntry', foreign_keys='KPIEntry.entered_by', backref='entered_by_user', lazy=True)
     verified_entries = db.relationship('KPIEntry', foreign_keys='KPIEntry.verified_by', backref='verifier', lazy=True)
+    
+    # Self-reference for created_by
+    creator = db.relationship('User', remote_side=[id], foreign_keys=[created_by], backref='created_users')
+    
+    def get_allowed_wards(self):
+        """Get allowed wards as list"""
+        try:
+            return json.loads(self.allowed_wards) if self.allowed_wards else []
+        except:
+            return []
+    
+    def set_allowed_wards(self, wards_list):
+        """Set allowed wards from list"""
+        self.allowed_wards = json.dumps(wards_list)
+    
+    def can_access_ward(self, ward_key):
+        """Check if user can access a specific ward"""
+        if self.role == 'admin':
+            return True
+        allowed = self.get_allowed_wards()
+        return not allowed or ward_key in allowed
+    
+    def is_password_expired(self):
+        """Check if password is expired"""
+        if self.password_set_date:
+            days_since = (datetime.utcnow() - self.password_set_date).days
+            return days_since >= self.password_expiry_days
+        return False
+    
+    def days_until_password_expiry(self):
+        """Get days until password expires"""
+        if self.password_set_date:
+            days_since = (datetime.utcnow() - self.password_set_date).days
+            return max(0, self.password_expiry_days - days_since)
+        return self.password_expiry_days
     
     def __repr__(self):
         return f'<User {self.username}>'
@@ -39,25 +84,12 @@ class UserAccessLog(db.Model):
     logout_time = db.Column(db.DateTime, nullable=True)
     ip_address = db.Column(db.String(45), nullable=True)
     user_agent = db.Column(db.String(200), nullable=True)
-    actions = db.Column(db.Text, nullable=True)
-    
-    def log_action(self, action):
-        actions = []
-        if self.actions:
-            try:
-                actions = json.loads(self.actions)
-            except:
-                actions = []
-        
-        actions.append({
-            'timestamp': datetime.utcnow().isoformat(),
-            'action': action
-        })
-        
-        self.actions = json.dumps(actions)
+    action = db.Column(db.String(50), nullable=True)  # login, logout, password_change, session_paused, user_created, user_updated, user_deleted
+    status = db.Column(db.String(20), nullable=True)  # success, failed, expired, paused
+    details = db.Column(db.Text, nullable=True)  # Additional details about the action
     
     def __repr__(self):
-        return f'<AccessLog User:{self.user_id} at {self.login_time}>'
+        return f'<AccessLog User:{self.user_id} Action:{self.action} at {self.login_time}>'
 
 # ===================== KPI DEFINITIONS =====================
 
