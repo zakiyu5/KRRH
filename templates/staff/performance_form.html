@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-md-8 mx-auto">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5><i class="bi bi-clipboard-data"></i> Record Performance - {{ staff.name }}</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('staff_performance', staff_id=staff.id) }}">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Year</label>
+                                <select class="form-select" name="year">
+                                    {% for y in range(2022, 2036) %}
+                                    <option value="{{ y }}" {% if y == now.year %}selected{% endif %}>{{ y }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Month</label>
+                                <select class="form-select" name="month">
+                                    {% for m in range(1, 13) %}
+                                    <option value="{{ m }}" {% if m == now.month %}selected{% endif %}>{{ months[m-1] }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        
+                        {% if staff.staff_type == 'doctor' %}
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">OPD Patients Seen</label>
+                                <input type="number" class="form-control" name="opd_patients" value="0">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">IPD Patients Seen</label>
+                                <input type="number" class="form-control" name="ipd_patients" value="0">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Doctor Ward Rounds</label>
+                                <input type="number" class="form-control" name="doctor_rounds" value="0">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Surgeries Performed</label>
+                                <input type="number" class="form-control" name="surgeries" value="0">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Prescriptions Written</label>
+                                <input type="number" class="form-control" name="prescriptions" value="0">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Drugs Entered in EMR</label>
+                                <input type="number" class="form-control" name="drug_entries" value="0">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Follow-up Reviews</label>
+                                <input type="number" class="form-control" name="followups" value="0">
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">OPD Patients Served</label>
+                                <input type="number" class="form-control" name="opd_patients" value="0">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">IPD Patients Received</label>
+                                <input type="number" class="form-control" name="ipd_patients" value="0">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Nurse Ward Rounds</label>
+                                <input type="number" class="form-control" name="nurse_rounds" value="0">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Admissions Handled</label>
+                                <input type="number" class="form-control" name="admissions" value="0">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Consumables Accounted</label>
+                                <input type="number" class="form-control" name="consumables" value="0">
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">EMR Days Worked</label>
+                                <input type="number" class="form-control" name="emr_days" value="0">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">EMR Computer Usage (sessions)</label>
+                                <input type="number" class="form-control" name="emr_usage" value="0">
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">Save Performance</button>
+                        <a href="{{ url_for('staff_list') }}" class="btn btn-secondary">Cancel</a>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

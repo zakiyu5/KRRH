@@ -48,9 +48,7 @@
                                 <td>{{ log.ip_address|default('-') }}</td>
                                 <td>
                                     <button class="btn btn-sm btn-outline-info" 
-                                            onclick="showActions('{{ log.actions|tojson }}')">
-                                        <i class="bi bi-journal-text"></i>
-                                    </button>
+                                    onclick="showDetails('{{ log.details|e if log.details else '' }}')">                                    </button>
                                 </td>
                             </tr>
                             {% else %}

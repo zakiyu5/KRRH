@@ -1,0 +1,182 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h2><i class="bi bi-people"></i> Staff Management</h2>
+                            <p class="text-muted">Manage doctors, nurses, and record their performance metrics</p>
+                        </div>
+                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addStaffModal">
+                            <i class="bi bi-person-plus"></i> Add Staff Member
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Staff Cards -->
+    <div class="row">
+        <div class="col-12">
+            <ul class="nav nav-tabs mb-3" id="staffTab" role="tablist">
+                <li class="nav-item">
+                    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#doctors">👨‍⚕️ Doctors</button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#nurses">👩‍⚕️ Nurses</button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#all">📋 All Staff</button>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="tab-content">
+        <div class="tab-pane fade show active" id="doctors">
+            <div class="row">
+                {% for staff in staff_list if staff.staff_type == 'doctor' %}
+                <div class="col-md-4 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ staff.name }}</h5>
+                            <p class="text-muted">{{ staff.staff_id }} | {{ staff.specialization or 'General' }}</p>
+                            <p><strong>Department:</strong> {{ staff.department or 'All' }}</p>
+                            <div class="btn-group">
+                                <a href="{{ url_for('staff_performance', staff_id=staff.id) }}" class="btn btn-sm btn-primary">
+                                    <i class="bi bi-pencil"></i> Record Performance
+                                </a>
+                                <a href="{{ url_for('staff_view', staff_id=staff.id) }}" class="btn btn-sm btn-info">
+                                    <i class="bi bi-eye"></i> View Stats
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="tab-pane fade" id="nurses">
+            <div class="row">
+                {% for staff in staff_list if staff.staff_type == 'nurse' %}
+                <div class="col-md-4 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ staff.name }}</h5>
+                            <p class="text-muted">{{ staff.staff_id }} | {{ staff.specialization or 'General' }}</p>
+                            <p><strong>Department:</strong> {{ staff.department or 'All' }}</p>
+                            <div class="btn-group">
+                                <a href="{{ url_for('staff_performance', staff_id=staff.id) }}" class="btn btn-sm btn-primary">
+                                    <i class="bi bi-pencil"></i> Record Performance
+                                </a>
+                                <a href="{{ url_for('staff_view', staff_id=staff.id) }}" class="btn btn-sm btn-info">
+                                    <i class="bi bi-eye"></i> View Stats
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="tab-pane fade" id="all">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr><th>ID</th><th>Name</th><th>Type</th><th>Specialization</th><th>Department</th><th>Actions</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for staff in staff_list %}
+                        <tr>
+                            <td>{{ staff.staff_id }}</td>
+                            <td>{{ staff.name }}</td>
+                            <td>{{ staff.staff_type|title }}</td>
+                            <td>{{ staff.specialization or '-' }}</td>
+                            <td>{{ staff.department or '-' }}</td>
+                            <td>
+                                <a href="{{ url_for('staff_performance', staff_id=staff.id) }}" class="btn btn-sm btn-primary">Record</a>
+                                <a href="{{ url_for('staff_view', staff_id=staff.id) }}" class="btn btn-sm btn-info">View</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Staff Modal (same as before) -->
+<div class="modal fade" id="addStaffModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Add Staff Member</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('add_staff') }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Staff ID</label>
+                        <input type="text" class="form-control" name="staff_id" required placeholder="e.g., DR001">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Full Name</label>
+                        <input type="text" class="form-control" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Staff Type</label>
+                        <select class="form-select" name="staff_type" required>
+                            <option value="doctor">Doctor</option>
+                            <option value="nurse">Nurse</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Specialization</label>
+                        <input type="text" class="form-control" name="specialization" placeholder="e.g., Surgeon, Pediatrician">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Department</label>
+                        <select class="form-select" name="department">
+                            <option value="">All Departments</option>
+                            <option value="OPD">OPD</option>
+                            <option value="Inpatient">Inpatient</option>
+                            <option value="Maternity">Maternity</option>
+                            <option value="Paediatrics">Paediatrics</option>
+                            <option value="Surgery">Surgery</option>
+                            <option value="Emergency">Emergency</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Phone</label>
+                        <input type="text" class="form-control" name="phone">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control" name="email">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Assigned Wards (hold Ctrl to select multiple)</label>
+                        <select class="form-select" name="wards" multiple size="4">
+                            <option value="OPD">OPD</option>
+                            <option value="Inpatient">Inpatient</option>
+                            <option value="Maternity">Maternity</option>
+                            <option value="Paediatrics">Paediatrics</option>
+                            <option value="Surgery">Surgery</option>
+                            <option value="Emergency">Emergency</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Staff</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

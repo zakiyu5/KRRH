@@ -1,0 +1,322 @@
+{% extends 'base.html' %}
+{% block content %}
+<style>
+    .performance-card {
+        transition: transform 0.2s;
+        cursor: pointer;
+    }
+    .performance-card:hover {
+        transform: translateY(-5px);
+    }
+    .stat-number {
+        font-size: 2rem;
+        font-weight: 800;
+    }
+    .rank-1 { background: linear-gradient(135deg, #ffd700, #ffed4e); color: #856404; }
+    .rank-2 { background: linear-gradient(135deg, #c0c0c0, #e8e8e8); color: #5a6268; }
+    .rank-3 { background: linear-gradient(135deg, #cd7f32, #e8a87c); color: #5a3a1a; }
+</style>
+
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h2><i class="bi bi-trophy"></i> Staff Performance Dashboard</h2>
+                    <p class="text-muted">Track doctor and nurse performance metrics, identify top performers</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Year/Month Selector -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex gap-2 align-items-center">
+                        <label class="fw-bold">Period:</label>
+                        <select class="form-select" style="width: 100px;" id="yearSelect" onchange="loadData()">
+                            {% for y in range(2022, 2036) %}
+                            <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+                            {% endfor %}
+                        </select>
+                        <select class="form-select" style="width: 120px;" id="monthSelect" onchange="loadData()">
+                            {% for m in range(1, 13) %}
+                            <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ months[m-1] }}</option>
+                            {% endfor %}
+                        </select>
+                        <button class="btn btn-primary" onclick="loadData()"><i class="bi bi-arrow-repeat"></i> Refresh</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Performers Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h4><i class="bi bi-star-fill text-warning"></i> 🏆 Top Performers - {{ months[month-1] }} {{ year }}</h4>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card rank-1 text-center">
+                <div class="card-body">
+                    <h6><i class="bi bi-activity"></i> Highest OPD Patients</h6>
+                    <div class="stat-number" id="topDoctorOpd">0</div>
+                    <p class="mb-0" id="topDoctorName">-</p>
+                    <small>patients</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card rank-2 text-center">
+                <div class="card-body">
+                    <h6><i class="bi bi-scissors"></i> Highest Surgeries</h6>
+                    <div class="stat-number" id="topSurgeonSurgery">0</div>
+                    <p class="mb-0" id="topSurgeonName">-</p>
+                    <small>surgeries</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card rank-3 text-center">
+                <div class="card-body">
+                    <h6><i class="bi bi-people"></i> Highest Nurse Rounds</h6>
+                    <div class="stat-number" id="topNurseRounds">0</div>
+                    <p class="mb-0" id="topNurseName">-</p>
+                    <small>rounds</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-success bg-opacity-10 text-center">
+                <div class="card-body">
+                    <h6><i class="bi bi-capsule"></i> Highest Prescriptions</h6>
+                    <div class="stat-number" id="topDoctorPresc">0</div>
+                    <p class="mb-0" id="topPrescName">-</p>
+                    <small>prescriptions</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Doctors Performance Table -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white">
+            <h5><i class="bi bi-person-badge"></i> 👨‍⚕️ Doctor Performance Rankings</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="doctorsTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Rank</th>
+                            <th>Doctor Name</th>
+                            <th>Department</th>
+                            <th>OPD Patients</th>
+                            <th>IPD Patients</th>
+                            <th>Surgeries</th>
+                            <th>Prescriptions</th>
+                            <th>Drugs in EMR</th>
+                            <th>Follow-ups</th>
+                            <th>EMR Days</th>
+                            <th>Productivity Score</th>
+                        </tr>
+                    </thead>
+                    <tbody id="doctorsTableBody">
+                        <tr><td colspan="11" class="text-center">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Nurses Performance Table -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white">
+            <h5><i class="bi bi-person-standing"></i> 👩‍⚕️ Nurse Performance Rankings</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="nursesTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Rank</th>
+                            <th>Nurse Name</th>
+                            <th>Department</th>
+                            <th>OPD Served</th>
+                            <th>IPD Received</th>
+                            <th>Ward Rounds</th>
+                            <th>Admissions</th>
+                            <th>Consumables</th>
+                            <th>EMR Days</th>
+                            <th>Productivity Score</th>
+                        </tr>
+                    </thead>
+                    <tbody id="nursesTableBody">
+                        <tr><td colspan="10" class="text-center">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Section -->
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <h6><i class="bi bi-bar-chart"></i> Top 5 Doctors by OPD Patients</h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="doctorsChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <h6><i class="bi bi-bar-chart"></i> Top 5 Nurses by Ward Rounds</h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="nursesChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    let doctorsChart, nursesChart;
+    
+    async function loadData() {
+        const year = document.getElementById('yearSelect').value;
+        const month = document.getElementById('monthSelect').value;
+        
+        const response = await fetch(`/api/staff-performance?year=${year}&month=${month}`);
+        const data = await response.json();
+        
+        // Update top performers
+        document.getElementById('topDoctorOpd').innerText = data.top_doctor?.opd_patients || 0;
+        document.getElementById('topDoctorName').innerText = data.top_doctor?.name || '-';
+        document.getElementById('topSurgeonSurgery').innerText = data.top_surgeon?.surgeries || 0;
+        document.getElementById('topSurgeonName').innerText = data.top_surgeon?.name || '-';
+        document.getElementById('topNurseRounds').innerText = data.top_nurse?.rounds || 0;
+        document.getElementById('topNurseName').innerText = data.top_nurse?.name || '-';
+        document.getElementById('topDoctorPresc').innerText = data.top_prescriber?.prescriptions || 0;
+        document.getElementById('topPrescName').innerText = data.top_prescriber?.name || '-';
+        
+        // Update doctors table
+        const doctorsTbody = document.getElementById('doctorsTableBody');
+        if (data.doctors && data.doctors.length > 0) {
+            doctorsTbody.innerHTML = data.doctors.map((doc, idx) => `
+                <tr>
+                    <td>${idx + 1}${idx === 0 ? ' 🥇' : idx === 1 ? ' 🥈' : idx === 2 ? ' 🥉' : ''}</td>
+                    <td><strong>${doc.name}</strong></td>
+                    <td>${doc.department || 'All'}</td>
+                    <td>${doc.opd_patients || 0}</td>
+                    <td>${doc.ipd_patients || 0}</td>
+                    <td>${doc.surgeries || 0}</td>
+                    <td>${doc.prescriptions || 0}</td>
+                    <td>${doc.drug_entries || 0}</td>
+                    <td>${doc.followups || 0}</td>
+                    <td>${doc.emr_days || 0}</td>
+                    <td>
+                        <div class="progress" style="height: 5px;">
+                            <div class="progress-bar bg-success" style="width: ${doc.productivity_score || 0}%"></div>
+                        </div>
+                        <small>${(doc.productivity_score || 0).toFixed(1)}%</small>
+                    </td>
+                </tr>
+            `).join('');
+        } else {
+            doctorsTbody.innerHTML = '<tr><td colspan="11" class="text-center">No doctor performance data for this period</td></tr>';
+        }
+        
+        // Update nurses table
+        const nursesTbody = document.getElementById('nursesTableBody');
+        if (data.nurses && data.nurses.length > 0) {
+            nursesTbody.innerHTML = data.nurses.map((nurse, idx) => `
+                <tr>
+                    <td>${idx + 1}${idx === 0 ? ' 🥇' : idx === 1 ? ' 🥈' : idx === 2 ? ' 🥉' : ''}</td>
+                    <td><strong>${nurse.name}</strong></td>
+                    <td>${nurse.department || 'All'}</td>
+                    <td>${nurse.opd_patients || 0}</td>
+                    <td>${nurse.ipd_patients || 0}</td>
+                    <td>${nurse.rounds || 0}</td>
+                    <td>${nurse.admissions || 0}</td>
+                    <td>${nurse.consumables || 0}</td>
+                    <td>${nurse.emr_days || 0}</td>
+                    <td>
+                        <div class="progress" style="height: 5px;">
+                            <div class="progress-bar bg-success" style="width: ${nurse.productivity_score || 0}%"></div>
+                        </div>
+                        <small>${(nurse.productivity_score || 0).toFixed(1)}%</small>
+                    </td>
+                </tr>
+            `).join('');
+        } else {
+            nursesTbody.innerHTML = '<tr><td colspan="10" class="text-center">No nurse performance data for this period</td></tr>';
+        }
+        
+        // Update charts
+        updateCharts(data);
+    }
+    
+    function updateCharts(data) {
+        const topDoctors = (data.doctors || []).slice(0, 5);
+        const topNurses = (data.nurses || []).slice(0, 5);
+        
+        if (doctorsChart) doctorsChart.destroy();
+        if (nursesChart) nursesChart.destroy();
+        
+        if (topDoctors.length > 0) {
+            const ctx = document.getElementById('doctorsChart').getContext('2d');
+            doctorsChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: topDoctors.map(d => d.name.split(' ')[0]),
+                    datasets: [{
+                        label: 'OPD Patients',
+                        data: topDoctors.map(d => d.opd_patients || 0),
+                        backgroundColor: '#0d6efd',
+                        borderRadius: 8
+                    }, {
+                        label: 'Surgeries',
+                        data: topDoctors.map(d => d.surgeries || 0),
+                        backgroundColor: '#dc3545',
+                        borderRadius: 8
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+        
+        if (topNurses.length > 0) {
+            const ctx = document.getElementById('nursesChart').getContext('2d');
+            nursesChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: topNurses.map(n => n.name.split(' ')[0]),
+                    datasets: [{
+                        label: 'Ward Rounds',
+                        data: topNurses.map(n => n.rounds || 0),
+                        backgroundColor: '#198754',
+                        borderRadius: 8
+                    }, {
+                        label: 'Admissions Handled',
+                        data: topNurses.map(n => n.admissions || 0),
+                        backgroundColor: '#ffc107',
+                        borderRadius: 8
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+    }
+    
+    // Initial load
+    loadData();
+</script>
+{% endblock %}

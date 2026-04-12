@@ -42,7 +42,9 @@
         {% endif %}
     </div>
     
-    <!-- Key Insights Cards - Top Performers -->
+    <!-- ============================================ -->
+    <!-- KEY INSIGHTS - TOP PERFORMERS WITH NAMES     -->
+    <!-- ============================================ -->
     <div class="row mb-4">
         <div class="col-12">
             <h4 class="mb-3"><i class="bi bi-trophy-fill text-warning"></i> 🏆 Key Insights - Top Performers</h4>
@@ -52,13 +54,11 @@
                 <div class="card-body text-center">
                     <h6 class="text-muted">👨‍⚕️ Highest OPD Presenter (Doctor)</h6>
                     <div class="display-6 fw-bold text-warning">
-                        {% if current_data and current_data.get('top_doctor_opd', 0) > 0 %}
-                            {{ "%.0f"|format(current_data.top_doctor_opd) }}
-                        {% else %}0{% endif %}
+                        {{ current_data.get('top_doctor_opd', 0) }}
                     </div>
                     <small class="text-muted">patients</small>
                     <div class="mt-2">
-                        <span class="badge bg-warning">{{ current_data.get('top_doctor_name', 'Not recorded') }}</span>
+                        <span class="badge bg-warning fs-6">{{ current_data.get('top_doctor_name', 'Not recorded') }}</span>
                     </div>
                 </div>
             </div>
@@ -68,13 +68,11 @@
                 <div class="card-body text-center">
                     <h6 class="text-muted">👩‍⚕️ Highest Nurse Rounds</h6>
                     <div class="display-6 fw-bold text-info">
-                        {% if current_data and current_data.get('top_nurse_rounds', 0) > 0 %}
-                            {{ "%.0f"|format(current_data.top_nurse_rounds) }}
-                        {% else %}0{% endif %}
+                        {{ current_data.get('top_nurse_rounds', 0) }}
                     </div>
                     <small class="text-muted">rounds</small>
                     <div class="mt-2">
-                        <span class="badge bg-info">{{ current_data.get('top_nurse_name', 'Not recorded') }}</span>
+                        <span class="badge bg-info fs-6">{{ current_data.get('top_nurse_name', 'Not recorded') }}</span>
                     </div>
                 </div>
             </div>
@@ -84,13 +82,11 @@
                 <div class="card-body text-center">
                     <h6 class="text-muted">🔪 Highest Surgical Load</h6>
                     <div class="display-6 fw-bold text-success">
-                        {% if current_data and current_data.get('top_surgical_load', 0) > 0 %}
-                            {{ "%.0f"|format(current_data.top_surgical_load) }}
-                        {% else %}0{% endif %}
+                        {{ current_data.get('top_surgical_load', 0) }}
                     </div>
                     <small class="text-muted">surgeries</small>
                     <div class="mt-2">
-                        <span class="badge bg-success">{{ current_data.get('top_surgeon_name', 'Not recorded') }}</span>
+                        <span class="badge bg-success fs-6">{{ current_data.get('top_surgeon_name', 'Not recorded') }}</span>
                     </div>
                 </div>
             </div>
@@ -100,13 +96,11 @@
                 <div class="card-body text-center">
                     <h6 class="text-muted">💊 Highest Drug Administration</h6>
                     <div class="display-6 fw-bold text-danger">
-                        {% if current_data and current_data.get('top_drug_admin', 0) > 0 %}
-                            {{ "%.0f"|format(current_data.top_drug_admin) }}
-                        {% else %}0{% endif %}
+                        {{ current_data.get('top_drug_admin', 0) }}
                     </div>
                     <small class="text-muted">administrations</small>
                     <div class="mt-2">
-                        <span class="badge bg-danger">{{ current_data.get('top_clinician_name', 'Not recorded') }}</span>
+                        <span class="badge bg-danger fs-6">{{ current_data.get('top_clinician_name', 'Not recorded') }}</span>
                     </div>
                 </div>
             </div>

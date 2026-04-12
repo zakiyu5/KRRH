@@ -1,4 +1,4 @@
-# app.py - Complete Version with Enhanced User Management
+# app.py - Complete Clean Version (No Duplicate Routes)
 
 import os
 import json
@@ -12,21 +12,19 @@ from werkzeug.security import generate_password_hash, check_password_hash
 # Local imports
 from config import config
 from models import db, User, UserAccessLog, KPICategory, KPIDefinition, KPIEntry
-from models import ReferralHospital, Referral
-from models import create_initial_kpi_categories, create_initial_kpis
+from models import ReferralHospital, Referral, CatchmentPopulation
+from models import Staff, StaffAssignment, StaffPerformance
+from models import LabTestCategory, LabTest, LabResult
+from models import create_initial_kpi_categories, create_initial_kpis, create_initial_lab_categories, create_initial_lab_tests
 
 # Add this for Render compatibility
-import sys
 import warnings
-
-# Suppress deprecation warnings on Render
 warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 # Fix for Werkzeug URL decode issue
 try:
     from werkzeug.urls import url_decode
 except ImportError:
-    # For newer versions of Werkzeug
     from urllib.parse import unquote
     def url_decode(s, charset='utf-8', decode_keys=False, include_empty=True, 
                    separator='&', cls=None, **kwargs):
@@ -87,9 +85,20 @@ def init_database():
             db.session.commit()
             print("✅ Admin created: admin / Admin@123")
         
+        # Create default catchment population for 2024
+        if not CatchmentPopulation.query.filter_by(year=2024).first():
+            catchment = CatchmentPopulation(year=2024, population=173680, updated_by=admin.id if admin else None)
+            db.session.add(catchment)
+            print("✅ Default catchment population (2024: 173,680) created")
+        
         # Create KPI categories and KPIs
         create_initial_kpi_categories()
         create_initial_kpis()
+        
+        # Create Lab categories and tests
+        create_initial_lab_categories()
+        create_initial_lab_tests()
+        print("✅ Lab tests initialized")
         
         # Create referral hospitals
         hospitals = [
@@ -130,27 +139,7 @@ def utility_processor():
     
     return {'min': min_value, 'from_json': from_json}
 
-
-
-## context 
-@app.context_processor
-def utility_processor():
-    def min_value(a, b):
-        if a is None or b is None:
-            return 0
-        return min(a, b)
-    
-    def from_json(json_str):
-        try:
-            if json_str:
-                return json.loads(json_str)
-            return []
-        except:
-            return []
-    
-    return {'min': min_value, 'from_json': from_json}
-
-# registering jinja filterss
+# registering jinja filters
 app.jinja_env.filters['from_json'] = lambda s: json.loads(s) if s else []
 
 # ===================== AUTH ROUTES =====================
@@ -172,55 +161,25 @@ def login():
         user = User.query.filter_by(username=username).first()
         
         if user and check_password_hash(user.password_hash, password):
-            # Check if account is paused
             if user.is_paused:
                 flash('Your account has been paused. Please contact administrator.', 'danger')
-                # Log failed attempt
-                log = UserAccessLog(
-                    user_id=user.id,
-                    action='login',
-                    status='paused',
-                    ip_address=request.remote_addr,
-                    user_agent=request.headers.get('User-Agent'),
-                    details='Account paused'
-                )
+                log = UserAccessLog(user_id=user.id, action='login', status='paused', ip_address=request.remote_addr, user_agent=request.headers.get('User-Agent'), details='Account paused')
                 db.session.add(log)
                 db.session.commit()
                 return render_template('landing.html')
             
-            # Check if account is active
             if not user.is_active:
                 flash('Your account is inactive. Please contact administrator.', 'danger')
                 return render_template('landing.html')
             
-            # Check password expiry
             days_since_set = (datetime.utcnow() - user.password_set_date).days if user.password_set_date else 0
             if days_since_set >= user.password_expiry_days:
                 flash('Your password has expired. Please reset your password.', 'warning')
-                # Log password expiry
-                log = UserAccessLog(
-                    user_id=user.id,
-                    action='login',
-                    status='expired',
-                    ip_address=request.remote_addr,
-                    user_agent=request.headers.get('User-Agent'),
-                    details='Password expired'
-                )
-                db.session.add(log)
-                db.session.commit()
             
             login_user(user)
             user.last_login = datetime.utcnow()
             
-            # Log successful login
-            log = UserAccessLog(
-                user_id=user.id,
-                action='login',
-                status='success',
-                ip_address=request.remote_addr,
-                user_agent=request.headers.get('User-Agent'),
-                details=f'Logged in from {request.remote_addr}'
-            )
+            log = UserAccessLog(user_id=user.id, action='login', status='success', ip_address=request.remote_addr, user_agent=request.headers.get('User-Agent'), details=f'Logged in from {request.remote_addr}')
             db.session.add(log)
             db.session.commit()
             
@@ -234,18 +193,9 @@ def login():
 @app.route('/logout')
 @login_required
 def logout():
-    # Log logout
-    log = UserAccessLog(
-        user_id=current_user.id,
-        action='logout',
-        status='success',
-        ip_address=request.remote_addr,
-        user_agent=request.headers.get('User-Agent'),
-        details='User logged out'
-    )
+    log = UserAccessLog(user_id=current_user.id, action='logout', status='success', ip_address=request.remote_addr, user_agent=request.headers.get('User-Agent'), details='User logged out')
     db.session.add(log)
     db.session.commit()
-    
     logout_user()
     flash('Logged out', 'info')
     return redirect(url_for('index'))
@@ -263,6 +213,335 @@ def dashboard():
                           categories=categories,
                           recent_entries=recent_entries,
                           pending_referrals=pending_referrals)
+
+# ===================== CATCHMENT POPULATION ROUTES =====================
+
+@app.route('/catchment')
+@login_required
+def catchment_list():
+    if current_user.role != 'admin':
+        flash('Access denied', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    catchments = CatchmentPopulation.query.order_by(CatchmentPopulation.year.desc()).all()
+    return render_template('admin/catchment.html', catchments=catchments, now=datetime.now())
+
+@app.route('/catchment/add', methods=['POST'])
+@login_required
+def add_catchment():
+    if current_user.role != 'admin':
+        flash('Access denied', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    year = request.form.get('year', type=int)
+    population = request.form.get('population', type=int)
+    
+    existing = CatchmentPopulation.query.filter_by(year=year).first()
+    if existing:
+        existing.population = population
+        existing.updated_at = datetime.utcnow()
+        existing.updated_by = current_user.id
+        flash(f'Catchment population for {year} updated', 'success')
+    else:
+        catchment = CatchmentPopulation(year=year, population=population, updated_by=current_user.id)
+        db.session.add(catchment)
+        flash(f'Catchment population for {year} added', 'success')
+    
+    db.session.commit()
+    return redirect(url_for('catchment_list'))
+
+@app.route('/api/catchment/<int:year>')
+@login_required
+def api_catchment(year):
+    catchment = CatchmentPopulation.query.filter_by(year=year).first()
+    if catchment:
+        return jsonify({'population': catchment.population})
+    return jsonify({'population': 173680})
+
+# ===================== STAFF MANAGEMENT ROUTES =====================
+
+@app.route('/staff')
+@login_required
+def staff_list():
+    if current_user.role not in ['admin', 'manager']:
+        flash('Access denied', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    staff_list = Staff.query.all()
+    months = ['January', 'February', 'March', 'April', 'May', 'June', 
+              'July', 'August', 'September', 'October', 'November', 'December']
+    return render_template('admin/staff.html', staff_list=staff_list, now=datetime.now(), months=months)
+
+@app.route('/staff/add', methods=['POST'])
+@login_required
+def add_staff():
+    if current_user.role not in ['admin', 'manager']:
+        flash('Access denied', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    staff = Staff(
+        staff_id=request.form.get('staff_id'),
+        name=request.form.get('name'),
+        staff_type=request.form.get('staff_type'),
+        specialization=request.form.get('specialization'),
+        department=request.form.get('department'),
+        phone=request.form.get('phone'),
+        email=request.form.get('email')
+    )
+    db.session.add(staff)
+    db.session.commit()
+    
+    wards = request.form.getlist('wards')
+    for ward in wards:
+        assignment = StaffAssignment(staff_id=staff.id, ward_key=ward)
+        db.session.add(assignment)
+    
+    db.session.commit()
+    flash(f'Staff {staff.name} added successfully', 'success')
+    return redirect(url_for('staff_list'))
+
+@app.route('/staff/<int:staff_id>/performance', methods=['GET', 'POST'])
+@login_required
+def staff_performance(staff_id):
+    staff = Staff.query.get_or_404(staff_id)
+    months = ['January', 'February', 'March', 'April', 'May', 'June', 
+              'July', 'August', 'September', 'October', 'November', 'December']
+    
+    if request.method == 'GET':
+        # Show the performance entry form
+        return render_template('staff/performance_form.html', staff=staff, now=datetime.now(), months=months)
+    
+    # POST method - save performance data
+    year = request.form.get('year', type=int)
+    month = request.form.get('month', type=int)
+    
+    if not year or not month:
+        flash('Year and month are required', 'danger')
+        return redirect(url_for('staff_list'))
+    
+    performance = StaffPerformance.query.filter_by(
+        staff_id=staff_id, reporting_year=year, reporting_month=month
+    ).first()
+    
+    if not performance:
+        performance = StaffPerformance(staff_id=staff_id, reporting_year=year, reporting_month=month)
+        db.session.add(performance)
+    
+    # Common fields
+    performance.opd_patients = request.form.get('opd_patients', type=int) or 0
+    performance.ipd_patients = request.form.get('ipd_patients', type=int) or 0
+    performance.emr_days_worked = request.form.get('emr_days', type=int) or 0
+    performance.emr_computer_usage = request.form.get('emr_usage', type=int) or 0
+    
+    if staff.staff_type == 'doctor':
+        performance.surgeries_performed = request.form.get('surgeries', type=int) or 0
+        performance.prescriptions = request.form.get('prescriptions', type=int) or 0
+        performance.drug_entries = request.form.get('drug_entries', type=int) or 0
+        performance.followup_reviews = request.form.get('followups', type=int) or 0
+    else:
+        performance.nurse_rounds = request.form.get('nurse_rounds', type=int) or 0
+        performance.admissions_handled = request.form.get('admissions', type=int) or 0
+        performance.consumables_accounted = request.form.get('consumables', type=int) or 0
+    
+    db.session.commit()
+    flash(f'Performance recorded for {staff.name}', 'success')
+    return redirect(url_for('staff_list'))
+
+@app.route('/staff/<int:staff_id>/view')
+@login_required
+def staff_view(staff_id):
+    """View staff performance history"""
+    staff = Staff.query.get_or_404(staff_id)
+    performances = StaffPerformance.query.filter_by(staff_id=staff_id).order_by(
+        StaffPerformance.reporting_year.desc(), StaffPerformance.reporting_month.desc()
+    ).all()
+    months = ['January', 'February', 'March', 'April', 'May', 'June', 
+              'July', 'August', 'September', 'October', 'November', 'December']
+    return render_template('staff/view.html', staff=staff, performances=performances, months=months, now=datetime.now())
+
+@app.route('/api/staff-performance')
+@login_required
+def api_staff_performance():
+    """API endpoint for staff performance dashboard"""
+    year = request.args.get('year', datetime.now().year, type=int)
+    month = request.args.get('month', datetime.now().month, type=int)
+    
+    # Get all staff with their performance for the selected month
+    all_staff = Staff.query.all()
+    
+    doctors_data = []
+    nurses_data = []
+    top_doctor = None
+    top_surgeon = None
+    top_nurse = None
+    top_prescriber = None
+    
+    for staff in all_staff:
+        performance = StaffPerformance.query.filter_by(
+            staff_id=staff.id, reporting_year=year, reporting_month=month
+        ).first()
+        
+        if not performance:
+            continue
+        
+        if staff.staff_type == 'doctor':
+            # Calculate productivity score
+            max_possible = 1000  # Adjust based on your targets
+            score = min(100, (
+                (performance.opd_patients or 0) * 0.1 +
+                (performance.ipd_patients or 0) * 0.05 +
+                (performance.surgeries_performed or 0) * 2 +
+                (performance.prescriptions or 0) * 0.2 +
+                (performance.drug_entries or 0) * 0.1 +
+                (performance.followup_reviews or 0) * 0.1 +
+                (performance.emr_days_worked or 0) * 2
+            ))
+            
+            doc_data = {
+                'id': staff.id,
+                'name': staff.name,
+                'department': staff.department,
+                'opd_patients': performance.opd_patients or 0,
+                'ipd_patients': performance.ipd_patients or 0,
+                'surgeries': performance.surgeries_performed or 0,
+                'prescriptions': performance.prescriptions or 0,
+                'drug_entries': performance.drug_entries or 0,
+                'followups': performance.followup_reviews or 0,
+                'emr_days': performance.emr_days_worked or 0,
+                'productivity_score': score
+            }
+            doctors_data.append(doc_data)
+            
+            # Track top performers
+            if not top_doctor or doc_data['opd_patients'] > top_doctor['opd_patients']:
+                top_doctor = {'name': staff.name, 'opd_patients': doc_data['opd_patients']}
+            if not top_surgeon or doc_data['surgeries'] > top_surgeon['surgeries']:
+                top_surgeon = {'name': staff.name, 'surgeries': doc_data['surgeries']}
+            if not top_prescriber or doc_data['prescriptions'] > top_prescriber['prescriptions']:
+                top_prescriber = {'name': staff.name, 'prescriptions': doc_data['prescriptions']}
+        
+        else:  # nurse
+            score = min(100, (
+                (performance.opd_patients or 0) * 0.1 +
+                (performance.ipd_patients or 0) * 0.1 +
+                (performance.nurse_rounds or 0) * 0.5 +
+                (performance.admissions_handled or 0) * 0.3 +
+                (performance.consumables_accounted or 0) * 0.1 +
+                (performance.emr_days_worked or 0) * 2
+            ))
+            
+            nurse_data = {
+                'id': staff.id,
+                'name': staff.name,
+                'department': staff.department,
+                'opd_patients': performance.opd_patients or 0,
+                'ipd_patients': performance.ipd_patients or 0,
+                'rounds': performance.nurse_rounds or 0,
+                'admissions': performance.admissions_handled or 0,
+                'consumables': performance.consumables_accounted or 0,
+                'emr_days': performance.emr_days_worked or 0,
+                'productivity_score': score
+            }
+            nurses_data.append(nurse_data)
+            
+            if not top_nurse or nurse_data['rounds'] > top_nurse['rounds']:
+                top_nurse = {'name': staff.name, 'rounds': nurse_data['rounds']}
+    
+    # Sort by productivity score
+    doctors_data.sort(key=lambda x: x['productivity_score'], reverse=True)
+    nurses_data.sort(key=lambda x: x['productivity_score'], reverse=True)
+    
+    return jsonify({
+        'doctors': doctors_data,
+        'nurses': nurses_data,
+        'top_doctor': top_doctor,
+        'top_surgeon': top_surgeon,
+        'top_nurse': top_nurse,
+        'top_prescriber': top_prescriber
+    })
+
+
+@app.route('/staff-dashboard')
+@login_required
+def staff_dashboard():
+    """Staff Performance Dashboard"""
+    year = request.args.get('year', datetime.now().year, type=int)
+    month = request.args.get('month', datetime.now().month, type=int)
+    months = ['January', 'February', 'March', 'April', 'May', 'June', 
+              'July', 'August', 'September', 'October', 'November', 'December']
+    return render_template('staff/dashboard.html', year=year, month=month, months=months, now=datetime.now())
+
+# ===================== LABORATORY ROUTES =====================
+
+@app.route('/laboratory')
+@login_required
+def laboratory_dashboard():
+    categories = LabTestCategory.query.order_by(LabTestCategory.display_order).all()
+    year = request.args.get('year', datetime.now().year, type=int)
+    month = request.args.get('month', datetime.now().month, type=int)
+    
+    months = ['January', 'February', 'March', 'April', 'May', 'June', 
+              'July', 'August', 'September', 'October', 'November', 'December']
+    
+    results = {}
+    for cat in categories:
+        for test in cat.tests:
+            result = LabResult.query.filter_by(test_id=test.id, reporting_year=year, reporting_month=month).first()
+            if result:
+                results[test.id] = result
+    
+    return render_template('laboratory/dashboard.html', 
+                          categories=categories, 
+                          results=results, 
+                          year=year, 
+                          month=month, 
+                          months=months,
+                          now=datetime.now())
+
+@app.route('/laboratory/entry/<int:test_id>', methods=['GET', 'POST'])
+@login_required
+def laboratory_entry(test_id):
+    test = LabTest.query.get_or_404(test_id)
+    
+    if request.method == 'POST':
+        year = request.form.get('year', type=int)
+        month = request.form.get('month', type=int)
+        
+        if not year or not month:
+            flash('Year and month are required', 'danger')
+            return redirect(url_for('laboratory_dashboard'))
+        
+        result = LabResult.query.filter_by(test_id=test_id, reporting_year=year, reporting_month=month).first()
+        if not result:
+            result = LabResult(test_id=test_id, reporting_year=year, reporting_month=month, entered_by=current_user.id)
+            db.session.add(result)
+        
+        result.total_performed = request.form.get('total_performed', type=int) or 0
+        result.total_positive = request.form.get('total_positive', type=int) or 0
+        result.total_negative = request.form.get('total_negative', type=int) or 0
+        result.total_invalid = request.form.get('total_invalid', type=int) or 0
+        result.turn_around_time_hours = request.form.get('turn_around_time', type=float) or 0
+        result.notes = request.form.get('notes')
+        result.entered_at = datetime.utcnow()
+        
+        db.session.commit()
+        flash(f'Lab results saved for {test.test_name}', 'success')
+        return redirect(url_for('laboratory_dashboard', year=year, month=month))
+    
+    year = request.args.get('year', datetime.now().year, type=int)
+    month = request.args.get('month', datetime.now().month, type=int)
+    existing = LabResult.query.filter_by(test_id=test_id, reporting_year=year, reporting_month=month).first()
+    
+    months = ['January', 'February', 'March', 'April', 'May', 'June', 
+              'July', 'August', 'September', 'October', 'November', 'December']
+    
+    return render_template('laboratory/entry.html', 
+                          test=test, 
+                          existing=existing, 
+                          year=year, 
+                          month=month,
+                          months=months,
+                          now=datetime.now())
 
 # ===================== WARD SYSTEM - ALL DEPARTMENTS =====================
 
@@ -605,12 +884,12 @@ KPI_FORMULAS = {
     },
     'Clinical_EMR': {
         'avg_daily_doctor_patients': {'numerator': 'opd_patients_seen', 'denominator': 'emr_days_worked', 'multiplier': 1},
-        'doctor_productivity': {'numerator': 'doctor_productivity_total', 'denominator': 'emr_days_worked', 'multiplier': 1},
+        'doctor_productivity': {'numerator': 'opd_patients_seen', 'denominator': 'emr_days_worked', 'multiplier': 1},
         'avg_daily_nurse_rounds': {'numerator': 'nurse_rounds', 'denominator': 'emr_days_worked', 'multiplier': 1},
-        'nurse_productivity': {'numerator': 'nurse_productivity_total', 'denominator': 'emr_days_worked', 'multiplier': 1},
+        'nurse_productivity': {'numerator': 'nurse_rounds', 'denominator': 'emr_days_worked', 'multiplier': 1},
         'emr_utilization_rate': {'numerator': 'emr_computer_usage', 'denominator': 'emr_days_worked', 'multiplier': 100},
-        'doctor_patient_ratio': {'numerator': 'opd_patients_seen', 'denominator': 'total_doctors_emr', 'multiplier': 1},
-        'nurse_patient_ratio': {'numerator': 'patients_served_nurses', 'denominator': 'total_nurses_emr', 'multiplier': 1},
+        'doctor_patient_ratio': {'numerator': 'opd_patients_seen', 'denominator': 'emr_days_worked', 'multiplier': 1},
+        'nurse_patient_ratio': {'numerator': 'patients_served_nurses', 'denominator': 'emr_days_worked', 'multiplier': 1},
         'surgical_load_index': {'numerator': 'major_surgeries', 'denominator': 'minor_surgeries', 'multiplier': 100},
     }
 }
@@ -632,6 +911,8 @@ class WardData(db.Model):
 with app.app_context():
     db.create_all()
 
+# ===================== WARD ROUTES =====================
+
 @app.route('/wards')
 @login_required
 def wards_list():
@@ -640,7 +921,6 @@ def wards_list():
 @app.route('/wards/<ward_key>/dashboard')
 @login_required
 def ward_dashboard(ward_key):
-    # Check if user has access to this ward
     if not current_user.can_access_ward(ward_key) and current_user.role != 'admin':
         flash('You do not have permission to access this department', 'danger')
         return redirect(url_for('wards_list'))
@@ -664,7 +944,6 @@ def ward_dashboard(ward_key):
         entered_by = None
         entered_at = None
     
-    # Get historical data
     historical = WardData.query.filter_by(ward_name=ward_key).order_by(
         WardData.reporting_year.desc(), WardData.reporting_month.desc()).limit(12).all()
     
@@ -677,17 +956,14 @@ def ward_dashboard(ward_key):
         historical_data.append(data)
     historical_data.reverse()
     
-    # Get only calculated KPIs for cards display
     display_kpis = [k for k in ward['kpis'] if k.get('type') == 'calculated' or k.get('type') == 'direct']
     card_kpis = [k for k in ward['kpis'] if k.get('type') == 'calculated']
     
     months = ['January', 'February', 'March', 'April', 'May', 'June', 
               'July', 'August', 'September', 'October', 'November', 'December']
     
-    # Generate year range from 2022 to 2035
     year_range = list(range(2022, 2036))
     
-    # Special template for Clinical_EMR
     if ward_key == 'Clinical_EMR':
         return render_template('wards/clinical_emr_dashboard.html',
                               ward_key=ward_key, ward=ward, kpis=display_kpis,
@@ -710,7 +986,6 @@ def ward_dashboard(ward_key):
 @app.route('/wards/<ward_key>/entry', methods=['GET', 'POST'])
 @login_required
 def ward_entry(ward_key):
-    # Check if user has access to this ward
     if not current_user.can_access_ward(ward_key) and current_user.role != 'admin':
         flash('You do not have permission to enter data for this department', 'danger')
         return redirect(url_for('wards_list'))
@@ -727,7 +1002,6 @@ def ward_entry(ward_key):
         month = request.form.get('month', type=int)
         notes = request.form.get('notes', '')
         
-        # Collect all raw data from form (all direct input fields)
         raw_data = {}
         for kpi in ward['kpis']:
             if kpi.get('type') == 'direct':
@@ -737,7 +1011,6 @@ def ward_entry(ward_key):
                 except:
                     raw_data[kpi['field']] = 0
         
-        # Calculate percentages for fields that have formulas
         calculated_data = raw_data.copy()
         for formula_field, formula in formulas.items():
             numerator = raw_data.get(formula['numerator'], 0)
@@ -747,12 +1020,7 @@ def ward_entry(ward_key):
             else:
                 calculated_data[formula_field] = 0
         
-        # Save calculated data
-        existing = WardData.query.filter_by(
-            ward_name=ward_key, 
-            reporting_year=year, 
-            reporting_month=month
-        ).first()
+        existing = WardData.query.filter_by(ward_name=ward_key, reporting_year=year, reporting_month=month).first()
         
         if existing:
             existing.data = json.dumps(calculated_data)
@@ -760,14 +1028,7 @@ def ward_entry(ward_key):
             existing.entered_at = datetime.utcnow()
             flash(f'Data updated for {ward["name"]}', 'success')
         else:
-            new_entry = WardData(
-                ward_name=ward_key,
-                reporting_year=year,
-                reporting_month=month,
-                data=json.dumps(calculated_data),
-                entered_by=current_user.id,
-                notes=notes
-            )
+            new_entry = WardData(ward_name=ward_key, reporting_year=year, reporting_month=month, data=json.dumps(calculated_data), entered_by=current_user.id, notes=notes)
             db.session.add(new_entry)
             flash(f'Data saved for {ward["name"]}', 'success')
         
@@ -777,47 +1038,28 @@ def ward_entry(ward_key):
     year = request.args.get('year', datetime.now().year, type=int)
     month = request.args.get('month', datetime.now().month, type=int)
     
-    existing = WardData.query.filter_by(
-        ward_name=ward_key, 
-        reporting_year=year, 
-        reporting_month=month
-    ).first()
+    existing = WardData.query.filter_by(ward_name=ward_key, reporting_year=year, reporting_month=month).first()
     existing_data = json.loads(existing.data) if existing else {}
     
     months = ['January', 'February', 'March', 'April', 'May', 'June', 
               'July', 'August', 'September', 'October', 'November', 'December']
     
-    # Generate year range from 2022 to 2035
     year_range = list(range(2022, 2036))
     
-    # Get only direct input fields for the entry form
     input_kpis = [k for k in ward['kpis'] if k.get('type') == 'direct']
     
-    # Use special template for Clinical_EMR
     if ward_key == 'Clinical_EMR':
         return render_template('wards/clinical_emr_entry.html',
-                              ward_key=ward_key,
-                              ward=ward,
-                              input_kpis=input_kpis,
-                              formulas=formulas,
-                              existing_data=existing_data,
-                              year=year,
-                              month=month,
-                              months=months,
-                              year_range=year_range,
-                              now=datetime.now())
+                              ward_key=ward_key, ward=ward, input_kpis=input_kpis,
+                              formulas=formulas, existing_data=existing_data,
+                              year=year, month=month, months=months,
+                              year_range=year_range, now=datetime.now())
     
     return render_template('wards/entry.html',
-                          ward_key=ward_key,
-                          ward=ward,
-                          input_kpis=input_kpis,
-                          formulas=formulas,
-                          existing_data=existing_data,
-                          year=year,
-                          month=month,
-                          months=months,
-                          year_range=year_range,
-                          now=datetime.now())
+                          ward_key=ward_key, ward=ward, input_kpis=input_kpis,
+                          formulas=formulas, existing_data=existing_data,
+                          year=year, month=month, months=months,
+                          year_range=year_range, now=datetime.now())
 
 @app.route('/wards/<ward_key>/export')
 @login_required
@@ -831,8 +1073,7 @@ def ward_export(ward_key):
         return redirect(url_for('ward_dashboard', ward_key=ward_key))
     
     ward = WARD_PARAMETERS[ward_key]
-    data = WardData.query.filter_by(ward_name=ward_key).order_by(
-        WardData.reporting_year.desc(), WardData.reporting_month.desc()).all()
+    data = WardData.query.filter_by(ward_name=ward_key).order_by(WardData.reporting_year.desc(), WardData.reporting_month.desc()).all()
     
     output = StringIO()
     writer = csv.writer(output)
@@ -919,12 +1160,10 @@ def admin_user_new():
         flash('Access denied', 'danger')
         return redirect(url_for('dashboard'))
     
-    # Validate password match
     if request.form.get('password') != request.form.get('confirm_password'):
         flash('Passwords do not match', 'danger')
         return redirect(url_for('admin_users'))
     
-    # Check if user exists
     if User.query.filter_by(username=request.form.get('username')).first():
         flash('Username already exists', 'danger')
         return redirect(url_for('admin_users'))
@@ -933,7 +1172,6 @@ def admin_user_new():
         flash('Email already registered', 'danger')
         return redirect(url_for('admin_users'))
     
-    # Get allowed wards
     allowed_wards = request.form.getlist('allowed_wards')
     
     user = User(
@@ -955,15 +1193,7 @@ def admin_user_new():
     db.session.add(user)
     db.session.commit()
     
-    # Log the action
-    log = UserAccessLog(
-        user_id=user.id,
-        action='user_created',
-        status='success',
-        ip_address=request.remote_addr,
-        user_agent=request.headers.get('User-Agent'),
-        details=f'User created by {current_user.username}'
-    )
+    log = UserAccessLog(user_id=user.id, action='user_created', status='success', ip_address=request.remote_addr, user_agent=request.headers.get('User-Agent'), details=f'User created by {current_user.username}')
     db.session.add(log)
     db.session.commit()
     
@@ -973,7 +1203,6 @@ def admin_user_new():
 @app.route('/admin/users/<int:user_id>/edit')
 @login_required
 def admin_user_edit_json(user_id):
-    """Get user data for editing"""
     if current_user.role != 'admin':
         return jsonify({'error': 'Unauthorized'}), 403
     
@@ -993,13 +1222,11 @@ def admin_user_edit_json(user_id):
 @app.route('/admin/users/<int:user_id>/update', methods=['POST'])
 @login_required
 def admin_user_update(user_id):
-    """Update user information"""
     if current_user.role != 'admin':
         flash('Access denied', 'danger')
         return redirect(url_for('admin_users'))
     
     user = User.query.get_or_404(user_id)
-    
     user.username = request.form.get('username')
     user.full_name = request.form.get('full_name')
     user.email = request.form.get('email')
@@ -1007,19 +1234,6 @@ def admin_user_update(user_id):
     user.role = request.form.get('role')
     user.department = request.form.get('department')
     user.password_expiry_days = request.form.get('password_expiry_days', type=int)
-    
-    db.session.commit()
-    
-    # Log the action
-    log = UserAccessLog(
-        user_id=user.id,
-        action='user_updated',
-        status='success',
-        ip_address=request.remote_addr,
-        user_agent=request.headers.get('User-Agent'),
-        details=f'User updated by {current_user.username}'
-    )
-    db.session.add(log)
     db.session.commit()
     
     flash(f'User {user.username} updated successfully', 'success')
@@ -1028,7 +1242,6 @@ def admin_user_update(user_id):
 @app.route('/admin/users/<int:user_id>/pause')
 @login_required
 def admin_user_pause(user_id):
-    """Pause user account"""
     if current_user.role != 'admin':
         flash('Access denied', 'danger')
         return redirect(url_for('admin_users'))
@@ -1040,17 +1253,6 @@ def admin_user_pause(user_id):
     
     user.is_paused = True
     user.is_active = False
-    
-    # Log the action
-    log = UserAccessLog(
-        user_id=user.id,
-        action='session_paused',
-        status='paused',
-        ip_address=request.remote_addr,
-        user_agent=request.headers.get('User-Agent'),
-        details=f'Account paused by {current_user.username}'
-    )
-    db.session.add(log)
     db.session.commit()
     
     flash(f'User {user.username} account paused', 'success')
@@ -1059,7 +1261,6 @@ def admin_user_pause(user_id):
 @app.route('/admin/users/<int:user_id>/resume')
 @login_required
 def admin_user_resume(user_id):
-    """Resume user account"""
     if current_user.role != 'admin':
         flash('Access denied', 'danger')
         return redirect(url_for('admin_users'))
@@ -1067,17 +1268,6 @@ def admin_user_resume(user_id):
     user = User.query.get_or_404(user_id)
     user.is_paused = False
     user.is_active = True
-    
-    # Log the action
-    log = UserAccessLog(
-        user_id=user.id,
-        action='session_resumed',
-        status='success',
-        ip_address=request.remote_addr,
-        user_agent=request.headers.get('User-Agent'),
-        details=f'Account resumed by {current_user.username}'
-    )
-    db.session.add(log)
     db.session.commit()
     
     flash(f'User {user.username} account resumed', 'success')
@@ -1086,7 +1276,6 @@ def admin_user_resume(user_id):
 @app.route('/admin/users/<int:user_id>/reset-password')
 @login_required
 def admin_user_reset_password(user_id):
-    """Reset user password"""
     if current_user.role != 'admin':
         flash('Access denied', 'danger')
         return redirect(url_for('admin_users'))
@@ -1097,29 +1286,16 @@ def admin_user_reset_password(user_id):
     if new_password and len(new_password) >= 8:
         user.password_hash = generate_password_hash(new_password)
         user.password_set_date = datetime.utcnow()
-        
-        # Log password reset
-        log = UserAccessLog(
-            user_id=user.id,
-            action='password_change',
-            status='success',
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent'),
-            details=f'Password reset by {current_user.username}'
-        )
-        db.session.add(log)
-        db.session.commit()
-        
         flash(f'Password reset for {user.username}', 'success')
     else:
         flash('Password must be at least 8 characters', 'danger')
     
+    db.session.commit()
     return redirect(url_for('admin_users'))
 
 @app.route('/admin/users/<int:user_id>/delete')
 @login_required
 def admin_user_delete(user_id):
-    """Delete user account"""
     if current_user.role != 'admin':
         flash('Access denied', 'danger')
         return redirect(url_for('admin_users'))
@@ -1130,19 +1306,6 @@ def admin_user_delete(user_id):
         return redirect(url_for('admin_users'))
     
     username = user.username
-    
-    # Log before deletion
-    log = UserAccessLog(
-        user_id=user.id,
-        action='user_deleted',
-        status='success',
-        ip_address=request.remote_addr,
-        user_agent=request.headers.get('User-Agent'),
-        details=f'User deleted by {current_user.username}'
-    )
-    db.session.add(log)
-    db.session.commit()
-    
     db.session.delete(user)
     db.session.commit()
     
@@ -1162,17 +1325,8 @@ def admin_users_export():
     writer.writerow(['Username', 'Full Name', 'Email', 'Phone', 'Role', 'Department', 'Status', 'Last Login', 'Created At'])
     for user in users:
         status = 'Paused' if user.is_paused else ('Active' if user.is_active else 'Inactive')
-        writer.writerow([
-            user.username, 
-            user.full_name, 
-            user.email or '', 
-            user.phone_number or '',
-            user.role,
-            user.department or '',
-            status,
-            user.last_login.strftime('%Y-%m-%d %H:%M') if user.last_login else '',
-            user.created_at.strftime('%Y-%m-%d') if user.created_at else ''
-        ])
+        writer.writerow([user.username, user.full_name, user.email or '', user.phone_number or '', user.role, user.department or '', status, user.last_login.strftime('%Y-%m-%d %H:%M') if user.last_login else '', user.created_at.strftime('%Y-%m-%d') if user.created_at else ''])
+    
     output.seek(0)
     response = make_response(output.getvalue())
     response.headers['Content-Disposition'] = 'attachment; filename=krrh_users.csv'
@@ -1195,29 +1349,42 @@ def admin_logs():
 @app.route('/api/ward-data/<ward_key>')
 @login_required
 def api_ward_data(ward_key):
-    """API endpoint for executive dashboard"""
     if ward_key not in WARD_PARAMETERS:
         return jsonify({})
     
     year = request.args.get('year', datetime.now().year, type=int)
     month = request.args.get('month', datetime.now().month, type=int)
     
-    existing = WardData.query.filter_by(
-        ward_name=ward_key, 
-        reporting_year=year, 
-        reporting_month=month
-    ).first()
+    existing = WardData.query.filter_by(ward_name=ward_key, reporting_year=year, reporting_month=month).first()
     
     if existing:
         return jsonify(json.loads(existing.data))
     return jsonify({})
+
+@app.route('/api/top-performers')
+@login_required
+def api_top_performers():
+    year = request.args.get('year', datetime.now().year, type=int)
+    month = request.args.get('month', datetime.now().month, type=int)
+    
+    top_doctor = db.session.query(Staff, StaffPerformance).join(StaffPerformance, Staff.id == StaffPerformance.staff_id).filter(
+        Staff.staff_type == 'doctor', StaffPerformance.reporting_year == year, StaffPerformance.reporting_month == month
+    ).order_by(StaffPerformance.opd_patients.desc()).first()
+    
+    top_nurse = db.session.query(Staff, StaffPerformance).join(StaffPerformance, Staff.id == StaffPerformance.staff_id).filter(
+        Staff.staff_type == 'nurse', StaffPerformance.reporting_year == year, StaffPerformance.reporting_month == month
+    ).order_by(StaffPerformance.nurse_rounds.desc()).first()
+    
+    return jsonify({
+        'top_doctor': {'name': top_doctor[0].name if top_doctor else 'Not recorded', 'value': top_doctor[1].opd_patients if top_doctor else 0},
+        'top_nurse': {'name': top_nurse[0].name if top_nurse else 'Not recorded', 'value': top_nurse[1].nurse_rounds if top_nurse else 0}
+    })
 
 # ===================== EXECUTIVE DASHBOARD =====================
 
 @app.route('/executive-dashboard')
 @login_required
 def executive_dashboard():
-    """Executive Dashboard - PowerBI style overview"""
     return render_template('executive_dashboard.html', now=datetime.now())
 
 # ===================== RECEPTION =====================
@@ -1248,15 +1415,18 @@ if __name__ == '__main__':
     init_database()
 
     print(f"\n🌐 Access URLs:")
-    print(f"   Home: http://127.0.0.1:8080/")
-    print(f"   Login: http://127.0.0.1:8080/login")
-    print(f"   Dashboard: http://127.0.0.1:8080/dashboard")
-    print(f"   Wards: http://127.0.0.1:8080/wards")
-    print(f"   Executive Dashboard: http://127.0.0.1:8080/executive-dashboard")
-    print(f"   Admin Users: http://127.0.0.1:8080/admin/users")
-    print(f"   Reception: http://127.0.0.1:8080/reception")
+    print(f"   Home: http://127.0.0.1:5353/")
+    print(f"   Login: http://127.0.0.1:5353/login")
+    print(f"   Dashboard: http://127.0.0.1:5353/dashboard")
+    print(f"   Wards: http://127.0.0.1:5353/wards")
+    print(f"   Staff: http://127.0.0.1:5353/staff")
+    print(f"   Laboratory: http://127.0.0.1:5353/laboratory")
+    print(f"   Catchment: http://127.0.0.1:5353/catchment")
+    print(f"   Executive Dashboard: http://127.0.0.1:5353/executive-dashboard")
+    print(f"   Admin Users: http://127.0.0.1:5353/admin/users")
+    print(f"   Reception: http://127.0.0.1:5353/reception")
     print(f"\n👤 Default Admin: admin / Admin@123")
+    print(f"📊 Default Catchment Population 2024: 173,680")
     print("="*60 + "\n")
     
-    app.run(debug=True, host='0.0.0.0', port=8080)
-
+    app.run(debug=True, host='0.0.0.0', port=5353)

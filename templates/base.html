@@ -22,9 +22,20 @@
         .nav-link {
             color: #495057 !important;
             font-weight: 500;
+            transition: all 0.2s;
         }
         .nav-link:hover {
             color: #0d6efd !important;
+            transform: translateY(-1px);
+        }
+        .dropdown-menu {
+            border: none;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            border-radius: 12px;
+        }
+        .dropdown-item:hover {
+            background: #f0f8ff;
+            color: #0d6efd;
         }
         .card {
             border: none;
@@ -42,11 +53,19 @@
             color: #6c757d;
             margin-top: 50px;
         }
+        .user-info {
+            font-size: 0.85rem;
+            color: #6c757d;
+            margin-right: 15px;
+        }
+        .user-info i {
+            margin-right: 5px;
+        }
     </style>
     {% block styles %}{% endblock %}
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-light">
+    <nav class="navbar navbar-expand-lg navbar-light sticky-top">
         <div class="container-fluid">
             <a class="navbar-brand d-flex align-items-center" href="{{ url_for('dashboard') }}">
                 <i class="bi bi-hospital fs-3 text-primary me-2"></i>
@@ -64,33 +83,88 @@
                 <ul class="navbar-nav ms-auto">
                     {% if current_user.is_authenticated %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('dashboard') }}">Dashboard</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('wards_list') }}">Wards</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('executive_dashboard') }}">
-                            <i class="bi bi-speedometer2"></i> Executive Dashboard
+                        <a class="nav-link" href="{{ url_for('dashboard') }}">
+                            <i class="bi bi-speedometer2"></i> Dashboard
                         </a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('referral_list') }}">Referrals</a>
+                    
+                    <!-- Wards Dropdown -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-building"></i> Departments
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('wards_list') }}">📋 All Wards</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('ward_dashboard', ward_key='OPD') }}">🚪 OPD</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('ward_dashboard', ward_key='Inpatient') }}">🛏️ Inpatient</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('ward_dashboard', ward_key='Maternity') }}">🤰 Maternity</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('ward_dashboard', ward_key='Paediatrics') }}">🧒 Paediatrics</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('ward_dashboard', ward_key='Surgery') }}">🔪 Surgery</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('ward_dashboard', ward_key='Emergency') }}">🚑 Emergency</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('ward_dashboard', ward_key='Clinical_EMR') }}">📊 EMR Analytics</a></li>
+                        </ul>
                     </li>
+                    
+                    <!-- Clinical Tools Dropdown -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-tools"></i> Clinical Tools
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('staff_list') }}">👥 Staff Management</a></li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('staff_list') }}">
+                                    <i class="bi bi-people"></i> Staff
+                                </a>
+                            </li>
+                            <li><a class="dropdown-item" href="{{ url_for('laboratory_dashboard') }}">🔬 Laboratory</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('referral_list') }}">🚑 Referrals</a></li>
+                    
+                            <li><a class="dropdown-item" href="{{ url_for('executive_dashboard') }}">📊 Executive Dashboard</a></li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('staff_dashboard') }}">
+                                    <i class="bi bi-bar-chart-steps"></i> Staff Dashboard
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    
+                    <!-- Admin Dropdown (only for admin) -->
                     {% if current_user.role == 'admin' %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('admin_users') }}">Admin</a>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-shield-lock"></i> Admin
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('admin_users') }}">👤 User Management</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('admin_logs') }}">📜 Access Logs</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('catchment_list') }}">🌍 Catchment Population</a></li>
+                        </ul>
                     </li>
                     {% endif %}
+                    
+                    <!-- User Info & Logout -->
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
+                        <span class="user-info">
+                            <i class="bi bi-person-circle"></i> {{ current_user.full_name }}
+                        </span>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('logout') }}">
+                            <i class="bi bi-box-arrow-right"></i> Logout
+                        </a>
+                    </li>
+                    
                     {% else %}
+                    <!-- Non-authenticated users -->
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('index') }}">Home</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('reception_view') }}" target="_blank">Reception</a>
+                        <a class="nav-link" href="{{ url_for('reception_view') }}" target="_blank">
+                            <i class="bi bi-tv"></i> Reception
+                        </a>
                     </li>
                     {% endif %}
                 </ul>
@@ -103,6 +177,7 @@
             {% if messages %}
                 {% for category, message in messages %}
                     <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        <i class="bi bi-{{ 'check-circle' if category == 'success' else 'exclamation-triangle' if category == 'danger' else 'info-circle' }} me-2"></i>
                         {{ message }}
                         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
@@ -115,13 +190,43 @@
         {% block content %}{% endblock %}
     </main>
     
-    <footer class="text-center py-3">
+    <footer class="text-center py-3 mt-4">
         <div class="container">
-            <p class="mb-0">&copy; {{ now.year }} Kayunga Regional Referral Hospital</p>
+            <p class="mb-0">
+                <i class="bi bi-hospital"></i> &copy; {{ now.year }} Kayunga Regional Referral Hospital | 
+                <i class="bi bi-graph-up"></i> KRRH InsightHub v2.0
+            </p>
+            <small class="text-muted">Empowering data-driven healthcare decisions</small>
         </div>
     </footer>
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Auto-hide alerts after 5 seconds
+        setTimeout(function() {
+            let alerts = document.querySelectorAll('.alert');
+            alerts.forEach(function(alert) {
+                let bsAlert = new bootstrap.Alert(alert);
+                setTimeout(function() {
+                    bsAlert.close();
+                }, 5000);
+            });
+        }, 1000);
+        
+        // Add active class to current nav item
+        document.addEventListener('DOMContentLoaded', function() {
+            const currentPath = window.location.pathname;
+            const navLinks = document.querySelectorAll('.nav-link');
+            navLinks.forEach(link => {
+                if (link.getAttribute('href') === currentPath) {
+                    link.classList.add('active');
+                    link.style.color = '#0d6efd';
+                }
+            });
+        });
+    </script>
+    
     {% block scripts %}{% endblock %}
 </body>
 </html>

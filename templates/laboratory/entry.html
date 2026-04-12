@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-md-8 mx-auto">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5><i class="bi bi-flask"></i> Lab Results Entry - {{ test.test_name }}</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Year</label>
+                                <select class="form-select" name="year">
+                                    {% for y in range(2022, 2036) %}
+                                    <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Month</label>
+                                <select class="form-select" name="month">
+                                    {% for m in range(1, 13) %}
+                                    <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ months[m-1] }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Total Tests Performed</label>
+                            <input type="number" class="form-control" name="total_performed" value="{{ existing.total_performed if existing else 0 }}">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Total Positive</label>
+                            <input type="number" class="form-control" name="total_positive" value="{{ existing.total_positive if existing else 0 }}">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Total Negative</label>
+                            <input type="number" class="form-control" name="total_negative" value="{{ existing.total_negative if existing else 0 }}">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Total Invalid</label>
+                            <input type="number" class="form-control" name="total_invalid" value="{{ existing.total_invalid if existing else 0 }}">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Turn Around Time (hours)</label>
+                            <input type="number" step="0.1" class="form-control" name="turn_around_time" value="{{ existing.turn_around_time_hours if existing else 0 }}">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Notes</label>
+                            <textarea class="form-control" name="notes" rows="3">{{ existing.notes if existing else '' }}</textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Save Results</button>
+                        <a href="{{ url_for('laboratory_dashboard', year=year, month=month) }}" class="btn btn-secondary">Cancel</a>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

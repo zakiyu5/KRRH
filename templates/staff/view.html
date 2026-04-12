@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container">
+    <div class="card shadow-sm">
+        <div class="card-header bg-info text-white">
+            <h5><i class="bi bi-eye"></i> Performance History - {{ staff.name }}</h5>
+        </div>
+        <div class="card-body">
+            <p><strong>Staff ID:</strong> {{ staff.staff_id }}</p>
+            <p><strong>Type:</strong> {{ staff.staff_type|title }}</p>
+            <p><strong>Specialization:</strong> {{ staff.specialization or 'General' }}</p>
+            
+            <div class="table-responsive mt-4">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Period</th>
+                            <th>OPD Patients</th>
+                            <th>IPD Patients</th>
+                            {% if staff.staff_type == 'doctor' %}
+                            <th>Surgeries</th>
+                            <th>Prescriptions</th>
+                            {% else %}
+                            <th>Nurse Rounds</th>
+                            <th>Admissions</th>
+                            {% endif %}
+                            <th>EMR Days</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for perf in performances %}
+                        <tr>
+                            <td>{{ months[perf.reporting_month-1] }} {{ perf.reporting_year }}</td>
+                            <td>{{ perf.opd_patients }}</td>
+                            <td>{{ perf.ipd_patients }}</td>
+                            {% if staff.staff_type == 'doctor' %}
+                            <td>{{ perf.surgeries_performed }}</td>
+                            <td>{{ perf.prescriptions }}</td>
+                            {% else %}
+                            <td>{{ perf.nurse_rounds }}</td>
+                            <td>{{ perf.admissions_handled }}</td>
+                            {% endif %}
+                            <td>{{ perf.emr_days_worked }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="6" class="text-center">No performance records found</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <a href="{{ url_for('staff_list') }}" class="btn btn-secondary mt-3">Back to Staff</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

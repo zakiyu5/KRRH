@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h2><i class="bi bi-flask"></i> Laboratory Dashboard</h2>
+                            <p class="text-muted">Track laboratory test volumes, positivity rates, and turnaround times</p>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <select class="form-select" style="width: 100px;" onchange="window.location.href=this.value">
+                                {% for y in range(2022, 2036) %}
+                                <option value="{{ url_for('laboratory_dashboard', year=y, month=month) }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+                                {% endfor %}
+                            </select>
+                            <select class="form-select" style="width: 120px;" onchange="window.location.href=this.value">
+                                {% for m in range(1, 13) %}
+                                <option value="{{ url_for('laboratory_dashboard', year=year, month=m) }}" {% if m == month %}selected{% endif %}>{{ months[m-1] }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% for category in categories %}
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white">
+            <h5>{{ category.icon if category.icon else '🔬' }} {{ category.name }}</h5>
+            <small class="text-muted">{{ category.description }}</small>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                {% for test in category.tests %}
+                {% set result = results[test.id] if test.id in results else None %}
+                <div class="col-md-4 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h6>{{ test.test_name }}</h6>
+                            <div class="row mt-3">
+                                <div class="col-6">
+                                    <small class="text-muted">Performed</small>
+                                    <h4>{{ result.total_performed if result else 0 }}</h4>
+                                </div>
+                                <div class="col-6">
+                                    <small class="text-muted">Positive</small>
+                                    <h4>{{ result.total_positive if result else 0 }}</h4>
+                                </div>
+                            </div>
+                            <div class="mt-2">
+                                <small class="text-muted">Positivity Rate</small>
+                                <div class="progress mb-1" style="height: 5px;">
+                                    {% set positivity = (result.total_positive / result.total_performed * 100) if result and result.total_performed > 0 else 0 %}
+                                    <div class="progress-bar bg-danger" style="width: {{ positivity }}%"></div>
+                                </div>
+                                <span>{{ "%.1f"|format(positivity) }}%</span>
+                            </div>
+                            <div class="mt-2">
+                                <small class="text-muted">TAT: {{ "%.1f"|format(result.turn_around_time_hours if result else 0) }} hrs</small>
+                            </div>
+                            <a href="{{ url_for('laboratory_entry', test_id=test.id, year=year, month=month) }}" class="btn btn-sm btn-outline-primary mt-2">Enter Results</a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
